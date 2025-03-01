@@ -1,0 +1,2465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NostrWorld - Relay Explorer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --zelda-dark-green: #0f380f;
+            --zelda-medium-green: #306230;
+            --zelda-light-green: #8bac0f;
+            --zelda-lighter-green: #9bbc0f;
+            --zelda-very-light: #e0f8d0;
+            --zelda-gold: #FFD700;
+            --zelda-blue: #0f5799;
+            --zelda-red: #cf6679;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Press Start 2P', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            background-color: var(--zelda-dark-green);
+            color: var(--zelda-very-light);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            image-rendering: pixelated;
+        }
+        #game-container { position: relative; flex-grow: 1; overflow: hidden; background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAIOSURBVHhe7d0xbsJAFEDR8z/YwR4s4Dq4gHtwA+7BDbgHN+Ae3IA7cAPu4Q7cgHtwA+7BDbgHd7rO9L3vR6/X+/P5fD6fz+fz+Xw+n89n8AV84V/AD/yFfwE/8BfuK/wL+AFf+Be4gB/wBX/xL+AHfMFf/Av4AV/4F7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AFf+Bf4AV/yF7iAH/CFf4EL+AP/ANXwY8p6P/XgAAAABJRU5ErkJggg==') repeat; }
+        #game-canvas { position: absolute; top: 0; left: 0; image-rendering: pixelated; }
+        .hide { display: none !important; }
+        #ui-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        #login-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--zelda-dark-green);
+            background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23306230' fill-opacity='0.4' fill-rule='evenodd'%3E%3Cpath d='M0 0h20v20H0V0zm20 20h20v20H20V20z'/%3E%3C/g%3E%3C/svg%3E");
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: all;
+            z-index: 100;
+            image-rendering: pixelated;
+        }
+        #login-panel {
+            background-color: var(--zelda-light-green);
+            border: 8px solid var(--zelda-medium-green);
+            padding: 24px;
+            max-width: 90%;
+            width: 500px;
+            box-shadow: 0 0 0 4px var(--zelda-dark-green), 8px 8px 0 0 rgba(0,0,0,0.5);
+            position: relative;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        #login-screen h1 {
+            font-size: 28px;
+            color: var(--zelda-dark-green);
+            text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+            text-align: center;
+            letter-spacing: -1px;
+            animation: glow 2s ease-in-out infinite;
+        }
+        @keyframes glow { 0% { text-shadow: 0 0 5px var(--zelda-gold); } 50% { text-shadow: 0 0 20px var(--zelda-gold), 0 0 30px var(--zelda-gold); } 100% { text-shadow: 0 0 5px var(--zelda-gold); } }
+        #login-screen p { font-size: 12px; color: var(--zelda-dark-green); margin-bottom: 20px; text-align: center; line-height: 1.6; }
+        #login-status { font-size: 12px; color: var(--zelda-gold); text-shadow: 1px 1px 0 #000; text-align: center; min-height: 20px; margin-top: 10px; }
+        #login-button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background-color: var(--zelda-medium-green);
+            color: var(--zelda-very-light);
+            border: 4px solid var(--zelda-dark-green);
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+            pointer-events: all;
+            display: block;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+        #login-button:before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(to bottom right, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 60%, rgba(255,255,255,0) 100%);
+            transform: rotate(45deg);
+            animation: sheen 3s forwards infinite;
+            pointer-events: none;
+        }
+        @keyframes sheen { 0% { transform: translateX(-100%) rotate(45deg); } 50% { transform: translateX(100%) rotate(45deg); } 100% { transform: translateX(-100%) rotate(45deg); } }
+        #login-button:hover { background-color: var(--zelda-lighter-green); transform: translateY(-2px); }
+        #login-button:active { transform: translateY(2px); box-shadow: 2px 2px 0 rgba(0,0,0,0.3); }
+        #login-button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .loader { border: 4px solid var(--zelda-medium-green); border-radius: 50%; border-top: 4px solid var(--zelda-gold); width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .pixel-corner { position: absolute; width: 16px; height: 16px; background-color: var(--zelda-medium-green); }
+        .corner-tl { top: -8px; left: -8px; }
+        .corner-tr { top: -8px; right: -8px; }
+        .corner-bl { bottom: -8px; left: -8px; }
+        .corner-br { bottom: -8px; right: -8px; }
+        .triforce-container { margin: 0 auto 20px; width: 120px; height: 120px; position: relative; animation: triforce-spin 10s linear infinite; transform-style: preserve-3d; }
+        @keyframes triforce-spin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+        .triforce { width: 0; height: 0; border-left: 30px solid transparent; border-right: 30px solid transparent; border-bottom: 52px solid var(--zelda-gold); position: absolute; filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.7)); animation: triforce-pulse 2s ease-in-out infinite alternate; }
+        @keyframes triforce-pulse { 0% { opacity: 0.8; } 100% { opacity: 1; filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.9)); } }
+        .triforce.top { top: 0; left: 30px; }
+        .triforce.left { top: 52px; left: 0; }
+        .triforce.right { top: 52px; left: 60px; }
+        .instructions { margin-top: 20px; padding: 15px; background-color: var(--zelda-lighter-green); border: 3px solid var(--zelda-dark-green); font-size: 10px; line-height: 1.6; max-height: 150px; overflow-y: auto; transform: scale(0.95); animation: pulse 3s ease-in-out infinite alternate; }
+        @keyframes pulse { 0% { transform: scale(0.95); } 100% { transform: scale(1); } }
+        .instructions h3 { color: var(--zelda-dark-green); margin-bottom: 10px; text-align: center; font-size: 12px; }
+        .instructions p { margin-bottom: 8px; }
+        .instructions strong { color: var(--zelda-dark-green); }
+        .sound-wave { position: absolute; width: 40px; height: 40px; border-radius: 50%; background: transparent; border: 2px solid var(--zelda-gold); top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); opacity: 0; pointer-events: none; }
+        @keyframes sound-wave { 0% { transform: translate(-50%, -50%) scale(0); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(3); opacity: 0; } }
+        #loading-indicator { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(15, 56, 15, 0.9); padding: 20px; border-radius: 8px; text-align: center; z-index: 1000; border: 4px solid var(--zelda-light-green); box-shadow: 0 0 20px rgba(0, 0, 0, 0.5); }
+        #loading-indicator h3 { color: var(--zelda-gold); margin-bottom: 10px; animation: glow 1.5s ease-in-out infinite alternate; }
+        .spinner { border: 5px solid rgba(139, 172, 15, 0.3); border-radius: 50%; border-top: 5px solid var(--zelda-gold); width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+        #loading-status { margin-top: 15px; color: var(--zelda-very-light); }
+        #top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            background-color: var(--zelda-medium-green);
+            border-bottom: 4px solid var(--zelda-dark-green);
+            padding: 8px;
+            pointer-events: all;
+            font-size: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            z-index: 15;
+        }
+        #score-display {
+            font-size: 14px;
+            color: var(--zelda-gold);
+            text-shadow: 1px 1px 0 #000;
+            background-color: var(--zelda-dark-green);
+            padding: 6px 10px;
+            border: 2px solid var(--zelda-light-green);
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #game-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+        #relay-selector, #kinds-selector, #time-filter {
+            padding: 4px;
+            background-color: var(--zelda-light-green);
+            color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-dark-green);
+            font-family: inherit;
+            font-size: 10px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #custom-relay-input, #custom-kind-input {
+            padding: 4px;
+            width: 180px;
+            background-color: var(--zelda-very-light);
+            color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-dark-green);
+            font-family: inherit;
+            font-size: 10px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #add-relay-button, #add-kind-button {
+            padding: 4px 8px;
+            background-color: var(--zelda-light-green);
+            color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-dark-green);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #add-relay-button:hover, #add-kind-button:hover { background-color: var(--zelda-lighter-green); }
+        #player-profile {
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            width: 250px;
+            background-color: var(--zelda-light-green);
+            border: 4px solid var(--zelda-dark-green);
+            padding: 10px;
+            pointer-events: all;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #player-profile img { width: 48px; height: 48px; border: 3px solid var(--zelda-dark-green); margin-right: 10px; box-shadow: 2px 2px 0 rgba(0,0,0,0.3); image-rendering: pixelated; border-radius: 50%; }
+        #player-profile-header { display: flex; align-items: center; margin-bottom: 10px; }
+        #player-profile-details { flex-grow: 1; }
+        #player-profile-name { font-size: 14px; color: var(--zelda-dark-green); margin-bottom: 4px; text-shadow: 1px 1px 0 rgba(255,255,255,0.3); }
+        #player-profile-npub { font-size: 10px; color: var(--zelda-medium-green); word-break: break-all; }
+        #player-profile-stats { margin-top: 10px; padding-top: 10px; border-top: 2px solid var(--zelda-medium-green); }
+        .profile-stat { display: flex; justify-content: space-between; margin-bottom: 6px; background-color: var(--zelda-lighter-green); padding: 4px 6px; box-shadow: 2px 2px 0 rgba(0,0,0,0.2); }
+        .profile-stat .label { color: var(--zelda-dark-green); font-size: 11px; }
+        .profile-stat .value { color: var(--zelda-dark-green); font-weight: bold; font-size: 11px; }
+        #player-profile button {
+            margin: 5px 0;
+            padding: 5px 10px;
+            background-color: var(--zelda-medium-green);
+            color: var(--zelda-very-light);
+            border: 2px solid var(--zelda-dark-green);
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            width: 100%;
+            image-rendering: pixelated;
+        }
+        #player-profile button:hover { background-color: var(--zelda-lighter-green); }
+        #leaderboard-container {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            width: 250px;
+            background-color: var(--zelda-light-green);
+            border: 4px solid var(--zelda-dark-green);
+            padding: 10px;
+            pointer-events: all;
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #leaderboard-container h3 { font-size: 14px; color: var(--zelda-dark-green); margin-bottom: 10px; text-align: center; text-shadow: 1px 1px 0 rgba(255,255,255,0.3); border-bottom: 2px solid var(--zelda-medium-green); padding-bottom: 5px; }
+        .leaderboard-entry { display: flex; justify-content: space-between; margin-bottom: 6px; padding: 4px 6px; background-color: var(--zelda-lighter-green); box-shadow: 2px 2px 0 rgba(0,0,0,0.2); }
+        .leaderboard-entry .rank { color: var(--zelda-dark-green); width: 30px; font-weight: bold; font-size: 11px; }
+        .leaderboard-entry .name { color: var(--zelda-dark-green); flex-grow: 1; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-size: 11px; }
+        .leaderboard-entry .score { color: var(--zelda-medium-green); text-align: right; width: 60px; font-weight: bold; font-size: 11px; }
+        #leaderboard-type {
+            width: 100%;
+            padding: 4px;
+            background-color: var(--zelda-light-green);
+            color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-dark-green);
+            font-family: inherit;
+            font-size: 10px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+            image-rendering: pixelated;
+        }
+        #user-popup {
+            position: absolute;
+            width: 400px;
+            background-color: var(--zelda-light-green);
+            border: 6px solid var(--zelda-dark-green);
+            padding: 15px;
+            pointer-events: all;
+            z-index: 50;
+            max-height: 500px;
+            overflow-y: auto;
+            box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #user-popup-header { display: flex; align-items: center; margin-bottom: 15px; position: relative; padding-bottom: 5px; border-bottom: 2px solid var(--zelda-medium-green); }
+        #user-popup-close {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: var(--zelda-red);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid var(--zelda-dark-green);
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+        }
+        #user-popup img { width: 50px; height: 50px; border-radius: 50%; margin-right: 10px; border: 2px solid var(--zelda-dark-green); image-rendering: pixelated; }
+        #user-popup-details { flex-grow: 1; }
+        #user-popup-name { font-size: 16px; color: var(--zelda-dark-green); margin-bottom: 5px; }
+        #user-popup-npub { font-size: 12px; color: var(--zelda-medium-green); word-break: break-all; }
+        #user-popup-actions { display: flex; gap: 10px; margin: 10px 0; }
+        .user-popup-button {
+            padding: 5px 10px;
+            background-color: var(--zelda-medium-green);
+            color: var(--zelda-very-light);
+            border: 2px solid var(--zelda-dark-green);
+            cursor: pointer;
+            flex-grow: 1;
+            text-align: center;
+            font-family: inherit;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        .user-popup-button:hover { background-color: var(--zelda-lighter-green); }
+        #user-notes-container { margin-top: 15px; border-top: 1px solid var(--zelda-medium-green); padding-top: 15px; }
+        #user-notes-container h4 { margin-bottom: 10px; color: var(--zelda-gold); }
+        .user-note { background-color: var(--zelda-lighter-green); padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+        .user-note-content { color: var(--zelda-dark-green); margin-bottom: 5px; word-wrap: break-word; }
+        .user-note-content img { max-width: 100%; height: auto; border: 2px solid var(--zelda-dark-green); }
+        .user-note-content audio, .user-note-content video { width: 100%; border: 2px solid var(--zelda-dark-green); }
+        .user-note-timestamp { color: var(--zelda-medium-green); font-size: 0.8em; text-align: right; }
+        .user-note-reply { margin-top: 5px; display: flex; gap: 5px; }
+        .user-note-reply input {
+            flex-grow: 1;
+            padding: 3px;
+            background-color: var(--zelda-very-light);
+            color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-dark-green);
+            font-family: inherit;
+            font-size: 10px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        .user-note-reply button {
+            padding: 3px 6px;
+            background-color: var(--zelda-medium-green);
+            color: var(--zelda-very-light);
+            border: 2px solid var(--zelda-dark-green);
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            image-rendering: pixelated;
+        }
+        .user-note-reply button:hover { background-color: var(--zelda-lighter-green); }
+        #chat-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--zelda-medium-green);
+            border-top: 4px solid var(--zelda-dark-green);
+            padding: 8px;
+            pointer-events: all;
+            box-shadow: 0 -2px 6px rgba(0,0,0,0.5);
+        }
+        #chat-messages {
+            height: 100px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding: 6px;
+            background-color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-light-green);
+            box-shadow: inset 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 11px;
+        }
+        .chat-message { margin-bottom: 5px; word-wrap: break-word; border-left: 2px solid var(--zelda-light-green); padding-left: 6px; }
+        .chat-message .username { color: var(--zelda-gold); font-weight: bold; text-shadow: 1px 1px 0 rgba(0,0,0,0.5); }
+        .chat-message .timestamp { color: var(--zelda-light-green); font-size: 0.8em; }
+        .chat-message .content { color: var(--zelda-very-light); }
+        #chat-input {
+            width: calc(100% - 70px);
+            padding: 8px;
+            background-color: var(--zelda-very-light);
+            color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-dark-green);
+            font-family: inherit;
+            font-size: 11px;
+            box-shadow: inset 2px 2px 4px rgba(0,0,0,0.2);
+            image-rendering: pixelated;
+        }
+        #send-chat-button {
+            width: 60px;
+            padding: 8px;
+            background-color: var(--zelda-light-green);
+            color: var(--zelda-dark-green);
+            border: 2px solid var(--zelda-dark-green);
+            cursor: pointer;
+            margin-left: 8px;
+            font-family: inherit;
+            font-size: 11px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #send-chat-button:hover { background-color: var(--zelda-lighter-green); }
+        #mobile-controls {
+            position: absolute;
+            bottom: 180px;
+            left: 10px;
+            pointer-events: all;
+            z-index: 20;
+            display: none;
+        }
+        .mobile-control-button {
+            width: 50px;
+            height: 50px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--zelda-light-green);
+            border-radius: 50%;
+            color: white;
+            font-size: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+        }
+        #mobile-control-up { position: absolute; top: -60px; left: 50px; }
+        #mobile-control-down { position: absolute; top: 60px; left: 50px; }
+        #mobile-control-left { position: absolute; top: 0; left: 0; }
+        #mobile-control-right { position: absolute; top: 0; left: 100px; }
+        .collectible { position: absolute; width: 20px; height: 20px; z-index: 5; }
+        .collectible-effect {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: transparent;
+            border-radius: 50%;
+            border: 2px solid var(--zelda-gold);
+            animation: collectEffect 0.5s ease-out;
+            z-index: 6;
+            pointer-events: none;
+        }
+        @keyframes collectEffect { 0% { transform: scale(0.5) rotate(0deg); opacity: 1; } 100% { transform: scale(2) rotate(360deg); opacity: 0; } }
+        #quest-display {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--zelda-light-green);
+            padding: 10px;
+            border: 4px solid var(--zelda-dark-green);
+            color: var(--zelda-dark-green);
+            font-size: 12px;
+            z-index: 15;
+            text-align: center;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+            max-width: 300px;
+        }
+        #mini-map {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            border: 2px solid var(--zelda-dark-green);
+            background: var(--zelda-medium-green);
+            image-rendering: pixelated;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+        }
+        #toast-container {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            pointer-events: none;
+        }
+        .toast {
+            background-color: var(--zelda-light-green);
+            border: 4px solid var(--zelda-dark-green);
+            padding: 10px;
+            margin-bottom: 10px;
+            color: var(--zelda-dark-green);
+            font-size: 12px;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
+            animation: toastFade 3s ease-out forwards;
+            image-rendering: pixelated;
+            text-align: center;
+            max-width: 400px;
+        }
+        @keyframes toastFade { 0% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-20px); } }
+        #action-popup {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            background-color: var(--zelda-light-green);
+            border: 6px solid var(--zelda-dark-green);
+            padding: 15px;
+            pointer-events: all;
+            z-index: 60;
+            box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #action-popup h3 { color: var(--zelda-dark-green); margin-bottom: 10px; text-align: center; }
+        #action-popup .item-list { max-height: 200px; overflow-y: auto; }
+        #action-popup .item { padding: 5px; margin: 5px 0; background-color: var(--zelda-lighter-green); border: 2px solid var(--zelda-dark-green); cursor: pointer; }
+        #action-popup .item:hover { background-color: var(--zelda-very-light); }
+        #action-popup button { margin-top: 10px; width: 100%; }
+        #trade-popup {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 350px;
+            background-color: var(--zelda-light-green);
+            border: 6px solid var(--zelda-dark-green);
+            padding: 15px;
+            pointer-events: all;
+            z-index: 60;
+            box-shadow: 6px 6px 0 rgba(0,0,0,0.3);
+            image-rendering: pixelated;
+        }
+        #trade-popup h3 { color: var(--zelda-dark-green); margin-bottom: 10px; text-align: center; }
+        #trade-popup .item-list { max-height: 150px; overflow-y: auto; }
+        .weather-effect { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .raindrop { position: absolute; width: 2px; height: 10px; background: var(--zelda-blue); animation: fall 0.5s linear infinite; }
+        .lightning { position: absolute; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); animation: flash 0.1s linear infinite; display: none; }
+        @keyframes fall { 0% { transform: translateY(-10px); opacity: 1; } 100% { transform: translateY(100vh); opacity: 0; } }
+        @keyframes flash { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+        .chest-unlock { animation: chestShake 5s ease-in-out forwards; }
+        @keyframes chestShake { 0% { transform: translateX(0); } 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { transform: translateX(0); filter: brightness(1.5); } }
+        .pet-clash { animation: clashFlash 0.5s linear; }
+        @keyframes clashFlash { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(2); } }
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: var(--zelda-dark-green); border: 2px solid var(--zelda-medium-green); }
+        ::-webkit-scrollbar-thumb { background: var(--zelda-light-green); border: 2px solid var(--zelda-dark-green); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--zelda-lighter-green); }
+        @media (max-width: 768px) {
+            #mobile-controls { display: block; }
+            #chat-messages { height: 80px; }
+            #login-screen h1 { font-size: 24px; }
+            #login-screen p { font-size: 14px; }
+            #top-bar { flex-direction: column; gap: 10px; }
+            #game-controls { flex-wrap: wrap; }
+            #player-profile, #leaderboard-container { width: calc(50% - 15px); }
+            #user-popup, #action-popup, #trade-popup { width: 90%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="weather-overlay" class="weather-effect"></div>
+    </div>
+    <div id="ui-container">
+        <div id="login-screen">
+            <div id="login-panel">
+                <div class="pixel-corner corner-tl"></div>
+                <div class="pixel-corner corner-tr"></div>
+                <div class="pixel-corner corner-bl"></div>
+                <div class="pixel-corner corner-br"></div>
+                <div class="triforce-container">
+                    <div class="triforce top"></div>
+                    <div class="triforce left"></div>
+                    <div class="triforce right"></div>
+                </div>
+                <h1>NostrWorld</h1>
+                <p>IT IS DANGEROUS TO GO ALONE! TAKE THIS...</p>
+                <p>A legendary adventure awaits! Explore the Nostr network in a vibrant Zelda-style world.</p>
+                <button id="login-button">LOGIN WITH NIP-07</button>
+                <div class="loader" id="login-loader"></div>
+                <div id="login-status"></div>
+                <div class="instructions">
+                    <h3>QUEST GUIDE</h3>
+                    <p><strong>MOVEMENT:</strong> WASD or Arrow Keys</p>
+                    <p><strong>INTERACT:</strong> E or Space near users</p>
+                    <p><strong>CHAT:</strong> Enter for global chat</p>
+                    <p><strong>FOLLOW:</strong> Click Follow in popup</p>
+                    <p><strong>GOAL:</strong> Explore and connect!</p>
+                </div>
+            </div>
+            <div class="sound-wave" id="sound-wave"></div>
+        </div>
+        <div id="loading-indicator" class="hide">
+            <h3>Loading NostrWorld</h3>
+            <div class="spinner"></div>
+            <p id="loading-status">Connecting to relay...</p>
+        </div>
+        <div id="top-bar" class="hide">
+            <div id="score-display">Score: 0</div>
+            <div id="game-controls">
+                <select id="relay-selector">
+                    <option value="wss://relay.damus.io">Damus Relay</option>
+                </select>
+                <input type="text" id="custom-relay-input" placeholder="wss://your-relay.com">
+                <button id="add-relay-button">Add Relay</button>
+                <select id="kinds-selector">
+                    <option value="1">Kind 1 (Notes)</option>
+                </select>
+                <input type="text" id="custom-kind-input" placeholder="Custom kind...">
+                <button id="add-kind-button">Add Kind</button>
+                <select id="time-filter">
+                    <option value="all">All Time</option>
+                    <option value="hour">Last Hour</option>
+                    <option value="day">Last Day</option>
+                    <option value="month">Last Month</option>
+                </select>
+            </div>
+        </div>
+        <div id="player-profile" class="hide">
+            <div id="player-profile-header">
+                <img id="player-profile-image" src="/api/placeholder/50/50" alt="Profile">
+                <div id="player-profile-details">
+                    <div id="player-profile-name">Loading...</div>
+                    <div id="player-profile-npub">Loading...</div>
+                    <div id="player-profile-title"></div>
+                </div>
+            </div>
+            <div id="player-profile-stats">
+                <div class="profile-stat"><div class="label">Score:</div><div class="value" id="profile-score">0</div></div>
+                <div class="profile-stat"><div class="label">Items:</div><div class="value" id="profile-items">0</div></div>
+                <div class="profile-stat"><div class="label">Interactions:</div><div class="value" id="profile-interactions">0</div></div>
+            </div>
+            <button id="shop-button">Shop</button>
+            <button id="guild-button">Guild</button>
+            <button id="pet-button">Pet</button>
+            <button id="faction-button">Faction</button>
+            <button id="dungeon-button">Dungeon</button>
+            <button id="stash-button">Stash</button>
+        </div>
+        <div id="leaderboard-container" class="hide">
+            <h3>Leaderboard</h3>
+            <select id="leaderboard-type">
+                <option value="score">Score</option>
+                <option value="items">Items</option>
+                <option value="quests">Quests</option>
+            </select>
+            <div id="leaderboard-entries"></div>
+        </div>
+        <div id="user-popup" class="hide" data-pubkey="">
+            <div id="user-popup-header">
+                <img id="user-popup-image" src="/api/placeholder/50/50" alt="User">
+                <div id="user-popup-details">
+                    <div id="user-popup-name">Loading...</div>
+                    <div id="user-popup-npub">Loading...</div>
+                </div>
+                <button id="user-popup-close">×</button>
+            </div>
+            <div id="user-popup-actions">
+                <button class="user-popup-button" id="follow-button">Follow</button>
+                <button class="user-popup-button" id="chat-button">Chat</button>
+                <button class="user-popup-button" id="trade-button">Trade</button>
+            </div>
+            <div id="user-notes-container">
+                <h4>Recent Notes</h4>
+                <div id="user-notes"></div>
+            </div>
+        </div>
+        <div id="chat-container" class="hide">
+            <div id="chat-messages"></div>
+            <div style="display: flex;">
+                <input type="text" id="chat-input" placeholder="Type a message...">
+                <button id="send-chat-button">Send</button>
+            </div>
+        </div>
+        <div id="mobile-controls" class="hide">
+            <div id="mobile-control-up" class="mobile-control-button">↑</div>
+            <div id="mobile-control-down" class="mobile-control-button">↓</div>
+            <div id="mobile-control-left" class="mobile-control-button">←</div>
+            <div id="mobile-control-right" class="mobile-control-button">→</div>
+        </div>
+        <div id="quest-display"></div>
+        <canvas id="mini-map" width="150" height="150"></canvas>
+        <div id="toast-container"></div>
+        <div id="action-popup" class="hide"></div>
+        <div id="trade-popup" class="hide"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script>
+    (function() {
+        const WORLD_SIZE = 3000;
+        const PLAYER_SPEED = 200;
+        const KIND_PROFILE = 0;
+        const KIND_NOTE = 1;
+        const KIND_CONTACTS = 3;
+        const KIND_SCORE = 420000000;
+        const KIND_CHAT = 420000001;
+        const KIND_DIRECT_CHAT = 420000002;
+        const KIND_ITEM_COLLECTION = 420000003;
+        const KIND_QUEST_START = 420000004;
+        const KIND_QUEST_COMPLETE = 420000005;
+        const KIND_ACHIEVEMENT = 420000006;
+        const KIND_POWERUP = 420000007;
+        const KIND_TRADE = 420000008;
+        const KIND_EVENT = 420000009;
+        const KIND_PORTAL = 420000010;
+        const KIND_BATTLE = 420000011;
+        const KIND_SHOP_PURCHASE = 420000012;
+        const KIND_GUILD = 420000013;
+        const KIND_PET = 420000014;
+        const KIND_TOURNAMENT = 420000015;
+        const KIND_WEATHER = 420000016;
+        const KIND_FACTION = 420000017;
+        const KIND_DUNGEON = 420000018;
+        const KIND_STASH = 420000019;
+        const KIND_TRADE_OFFER = 420000020;
+        const KIND_TRADE_RESPONSE = 420000021;
+        const KIND_TRADE_ACCEPT = 420000022;
+        const KIND_TREASURE = 420000023;
+        const KIND_CHALLENGE = 420000024;
+        const KIND_PET_BATTLE = 420000025;
+
+        const game = {
+            canvas: document.getElementById('game-canvas'),
+            ctx: null,
+            running: false,
+            lastFrameTime: performance.now(),
+            lastWeatherChange: 0,
+            animationFrame: 0,
+            player: {
+                pubkey: null,
+                x: WORLD_SIZE / 2,
+                y: WORLD_SIZE / 2,
+                score: 0,
+                itemsCollected: 0,
+                interactions: 0,
+                profile: null,
+                distanceTraveled: 0,
+                notesPosted: 0,
+                follows: 0,
+                gemsCollected: 0,
+                chatMessages: 0,
+                trades: 0,
+                treasuresCollected: 0,
+                level: 1,
+                exp: 0,
+                guild: null,
+                faction: null,
+                health: 100,
+                pet: null,
+                inventory: [],
+                bobOffset: 0
+            },
+            world: { width: WORLD_SIZE, height: WORLD_SIZE, collectibles: [], treasures: [] },
+            camera: { x: 0, y: 0 },
+            input: { up: false, down: false, left: false, right: false, touch: { active: false, button: null } },
+            users: new Map(),
+            relays: new Set(['wss://relay.damus.io']),
+            relayConnections: new Map(),
+            activeRelay: 'wss://relay.damus.io',
+            kinds: new Set([KIND_NOTE, KIND_SCORE, KIND_PROFILE, KIND_CHAT, KIND_DIRECT_CHAT]),
+            timeFilter: 'all',
+            items: [
+                { id: "master_sword", emoji: "🗡️", name: "Master Sword", value: 1000, rarity: "1/1" },
+                { id: "hylian_shield", emoji: "🛡️", name: "Hylian Shield", value: 800, rarity: "1/1" },
+                { id: "triforce_piece", emoji: "▲", name: "Triforce Piece", value: 500, rarity: "10/10" },
+                { id: "red_rupee", emoji: "💎", name: "Red Rupee", value: 200, rarity: "10/10" },
+                { id: "green_rupee", emoji: "💰", name: "Green Rupee", value: 50, rarity: "100/100" },
+                { id: "magic_potion", emoji: "🧪", name: "Magic Potion", value: 30, rarity: "100/100" },
+                { id: "heart", emoji: "❤️", name: "Heart", value: 10, rarity: "1000/1000" },
+                { id: "wooden_bow", emoji: "🏹", name: "Wooden Bow", value: 20, rarity: "1000/1000" },
+                { id: "bomb", emoji: "💣", name: "Bomb", value: 40, rarity: "100/100" },
+                { id: "fire_rod", emoji: "🔥", name: "Fire Rod", value: 300, rarity: "10/10" },
+                // Expand to 100 items as needed
+            ],
+            trades: new Map(),
+            quests: {
+                active: null,
+                completed: 0,
+                types: [
+                    { id: "collect_rupees", name: "Rupee Hoarder", desc: "Collect 10 rupees", target: 10, reward: 100, condition: (p) => p.itemsCollected },
+                    { id: "interact_users", name: "Social Hero", desc: "Interact with 5 users", target: 5, reward: 150, condition: (p) => p.interactions },
+                    { id: "explore_area", name: "Wanderer", desc: "Travel 1000 units", target: 1000, reward: 200, condition: (p) => p.distanceTraveled },
+                    { id: "post_notes", name: "Scribe", desc: "Post 3 notes", target: 3, reward: 120, condition: (p) => p.notesPosted },
+                    { id: "follow_users", name: "Link Maker", desc: "Follow 4 users", target: 4, reward: 180, condition: (p) => p.follows },
+                    { id: "collect_gems", name: "Gem Seeker", desc: "Collect 5 gems", target: 5, reward: 250, condition: (p) => p.gemsCollected },
+                    { id: "chat_messages", name: "Chatterbox", desc: "Send 10 chat messages", target: 10, reward: 130, condition: (p) => p.chatMessages },
+                    { id: "high_score", name: "Score Master", desc: "Reach 500 score", target: 500, reward: 300, condition: (p) => p.score },
+                    { id: "trade_items", name: "Merchant", desc: "Trade 3 items", target: 3, reward: 200, condition: (p) => p.trades },
+                    { id: "rare_treasure", name: "Treasure Hunter", desc: "Find 2 rare treasures", target: 2, reward: 400, condition: (p) => p.treasuresCollected }
+                ],
+                startQuest: function() {
+                    if (!this.active) {
+                        const quest = this.types[Math.floor(Math.random() * this.types.length)];
+                        this.active = { ...quest, progress: 0 };
+                        nostr.publishEvent(KIND_QUEST_START, { questId: quest.id, target: quest.target });
+                        ui.updateQuestDisplay();
+                    }
+                },
+                update: function() {
+                    if (!this.active) return;
+                    this.active.progress = this.active.condition(game.player);
+                    if (this.active.progress >= this.active.target) {
+                        game.player.score += this.active.reward;
+                        this.completed += 1;
+                        nostr.publishEvent(KIND_QUEST_COMPLETE, { questId: this.active.id, reward: this.active.reward });
+                        nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                        ui.updatePlayerProfile();
+                        ui.updateQuestDisplay();
+                        ui.showToast(`Quest "${this.active.name}" completed! Reward: ${this.active.reward} points`);
+                        this.active = null;
+                        setTimeout(() => this.startQuest(), 5000);
+                    }
+                }
+            },
+            achievements: {
+                list: [
+                    { id: "first_steps", name: "First Steps", desc: "Travel 500 units", target: 500, condition: (p) => p.distanceTraveled, earned: false },
+                    { id: "rupee_collector", name: "Rupee Collector", desc: "Collect 20 rupees", target: 20, condition: (p) => p.itemsCollected, earned: false },
+                    { id: "social_star", name: "Social Star", desc: "Interact with 10 users", target: 10, condition: (p) => p.interactions, earned: false },
+                    { id: "chat_master", name: "Chat Master", desc: "Send 50 messages", target: 50, condition: (p) => p.chatMessages, earned: false },
+                    { id: "quest_legend", name: "Quest Legend", desc: "Complete 5 quests", target: 5, condition: () => game.quests.completed, earned: false }
+                ],
+                check: function() {
+                    this.list.forEach(a => {
+                        if (!a.earned && a.condition(game.player) >= a.target) {
+                            a.earned = true;
+                            game.player.score += 50;
+                            nostr.publishEvent(KIND_ACHIEVEMENT, { achievementId: a.id });
+                            nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                            ui.updatePlayerProfile();
+                            ui.showToast(`Achievement Unlocked: ${a.name}! +50 points`);
+                        }
+                    });
+                }
+            },
+            powerups: {
+                active: null,
+                spawn: function() {
+                    if (Math.random() < 0.005 && !game.world.collectibles.some(c => c.type === 'powerup')) {
+                        const types = [
+                            { id: "speed", emoji: "🏃", effect: () => PLAYER_SPEED * 2, duration: 10000 },
+                            { id: "score_boost", emoji: "✨", effect: () => 2, duration: 15000 }
+                        ];
+                        const pu = types[Math.floor(Math.random() * types.length)];
+                        game.world.collectibles.push({ id: Date.now(), x: Math.random() * WORLD_SIZE, y: Math.random() * WORLD_SIZE, type: 'powerup', ...pu });
+                    }
+                },
+                apply: function(item) {
+                    this.active = { ...item, start: Date.now() };
+                    nostr.publishEvent(KIND_POWERUP, { powerupId: item.id });
+                    ui.showToast(`Power-up activated: ${item.id}`);
+                    setTimeout(() => this.active = null, item.duration);
+                }
+            },
+            dailyBonus: {
+                lastLogin: null,
+                streak: 0,
+                check: function() {
+                    const today = new Date().toDateString();
+                    if (this.lastLogin !== today) {
+                        this.streak = (this.lastLogin === new Date(Date.now() - 86400000).toDateString()) ? this.streak + 1 : 1;
+                        this.lastLogin = today;
+                        const reward = Math.min(this.streak * 50, 500);
+                        game.player.score += reward;
+                        nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                        ui.updatePlayerProfile();
+                        ui.showToast(`Daily Bonus! Day ${this.streak}: +${reward} points`);
+                    }
+                }
+            },
+            worldEvents: {
+                active: null,
+                spawn: function() {
+                    if (!this.active && Math.random() < 0.002) {
+                        this.active = { type: "treasure_rush", duration: 30000, start: Date.now() };
+                        nostr.publishEvent(KIND_EVENT, { eventType: this.active.type, duration: this.active.duration });
+                        for (let i = 0; i < 10; i++) spawnCollectibles(1);
+                        ui.showToast("Treasure Rush! Extra treasures spawned for 30 seconds!");
+                        setTimeout(() => this.active = null, this.active.duration);
+                    }
+                }
+            },
+            treasures: {
+                spawn: function() {
+                    if (Math.random() < 0.01 && game.world.treasures.length < 5) {
+                        const treasure = {
+                            id: Date.now(),
+                            x: Math.random() * WORLD_SIZE,
+                            y: Math.random() * WORLD_SIZE,
+                            unlocking: false,
+                            unlockStart: 0
+                        };
+                        game.world.treasures.push(treasure);
+                        nostr.publishEvent(KIND_TREASURE, { action: "spawn", treasureId: treasure.id, x: treasure.x, y: treasure.y });
+                    }
+                },
+                open: function(treasureId) {
+                    const treasure = game.world.treasures.find(t => t.id === treasureId);
+                    if (treasure && !treasure.unlocking) {
+                        treasure.unlocking = true;
+                        treasure.unlockStart = Date.now();
+                        setTimeout(() => {
+                            if (treasure.unlocking) {
+                                const reward = Math.random() < 0.5 ? game.items.find(i => i.rarity === "1/1") : game.items.find(i => i.rarity === "10/10");
+                                game.player.inventory.push({ ...reward, id: Date.now() });
+                                game.player.score += 500;
+                                nostr.publishEvent(KIND_TREASURE, { action: "open", treasureId });
+                                nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                                ui.updatePlayerProfile();
+                                ui.showToast(`Treasure opened! Gained ${reward.emoji} ${reward.name} +500 points`);
+                                game.world.treasures = game.world.treasures.filter(t => t.id !== treasureId);
+                            }
+                        }, 5000);
+                    }
+                }
+            },
+            challenges: {
+                active: null,
+                lastDay: null,
+                types: [
+                    { id: "collect_5_rupees", name: "Rupee Rush", desc: "Collect 5 rupees", target: 5, reward: 200, condition: (p) => p.itemsCollected },
+                    { id: "battle_3", name: "Warrior", desc: "Defeat 3 enemies", target: 3, reward: 200, condition: (p) => p.treasuresCollected }
+                ],
+                check: function() {
+                    const today = new Date().toDateString();
+                    if (this.lastDay !== today) {
+                        this.lastDay = today;
+                        this.active = { ...this.types[Math.floor(Math.random() * this.types.length)], progress: 0, completed: false };
+                        nostr.publishEvent(KIND_CHALLENGE, { action: "start", challengeId: this.active.id, target: this.active.target });
+                        ui.showToast(`Daily Challenge: ${this.active.name} - ${this.active.desc}`);
+                    }
+                    if (this.active && !this.active.completed) {
+                        this.active.progress = this.active.condition(game.player);
+                        if (this.active.progress >= this.active.target) {
+                            game.player.score += this.active.reward;
+                            this.active.completed = true;
+                            nostr.publishEvent(KIND_CHALLENGE, { action: "complete", challengeId: this.active.id, reward: this.active.reward });
+                            nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                            ui.updatePlayerProfile();
+                            ui.showToast(`Challenge "${this.active.name}" completed! +${this.active.reward} points`);
+                        }
+                    }
+                }
+            },
+            petBattles: {
+                challenge: function(targetPubkey) {
+                    const target = game.users.get(targetPubkey);
+                    if (target && target.pet && game.player.pet) {
+                        const playerPower = game.player.pet.level * 10 + Math.random() * 10;
+                        const targetPower = target.pet.level * 10 + Math.random() * 10;
+                        const winner = playerPower > targetPower ? game.player.pubkey : targetPubkey;
+                        if (winner === game.player.pubkey) {
+                            game.player.score += 50;
+                            target.pet.health = Math.max(0, target.pet.health - 10);
+                            ui.showToast(`You won the pet battle! +50 points`);
+                        } else {
+                            game.player.pet.health = Math.max(0, game.player.pet.health - 10);
+                            target.score += 50;
+                            ui.showToast(`You lost the pet battle! Pet health -10`);
+                        }
+                        nostr.publishEvent(KIND_PET_BATTLE, { winner, loser: winner === game.player.pubkey ? targetPubkey : game.player.pubkey });
+                        ui.updatePlayerProfile();
+                        return true;
+                    }
+                    return false;
+                }
+            },
+            levelUp: function() {
+                const expNeeded = this.player.level * 1000;
+                if (this.player.score >= expNeeded) {
+                    this.player.level += 1;
+                    this.player.exp = this.player.score - expNeeded;
+                    nostr.publishEvent(KIND_SCORE, { score: this.player.score, level: this.player.level });
+                    ui.updatePlayerProfile();
+                    ui.showToast(`Level Up! You are now Level ${this.player.level}`);
+                }
+            },
+            miniMap: {
+                canvas: document.getElementById('mini-map'),
+                ctx: null,
+                draw: function() {
+                    if (!this.ctx) this.ctx = this.canvas.getContext('2d');
+                    const ctx = this.ctx;
+                    ctx.clearRect(0, 0, 150, 150);
+                    const scale = 150 / WORLD_SIZE;
+                    game.users.forEach((user, pubkey) => {
+                        ctx.fillStyle = pubkey === game.player.pubkey ? "#FF0000" : "#FFFFFF";
+                        ctx.beginPath();
+                        ctx.arc(user.x * scale, user.y * scale, 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                }
+            },
+            portals: {
+                list: [
+                    { id: "forest", x: 500, y: 500, color: "#228B22" },
+                    { id: "mountain", x: 2500, y: 2500, color: "#808080" }
+                ],
+                use: function(portalId) {
+                    const portal = this.list.find(p => p.id === portalId);
+                    if (portal) {
+                        game.player.x = portal.x;
+                        game.player.y = portal.y;
+                        nostr.publishEvent(KIND_PORTAL, { portalId });
+                        ui.updatePlayerProfile();
+                        ui.showToast(`Teleported to ${portalId}!`);
+                    }
+                }
+            },
+            battles: {
+                opponents: new Map(),
+                spawn: function() {
+                    if (Math.random() < 0.01 && game.world.collectibles.length < 50) {
+                        const opponent = {
+                            id: Date.now(),
+                            x: Math.random() * WORLD_SIZE,
+                            y: Math.random() * WORLD_SIZE,
+                            health: 100,
+                            damage: 10
+                        };
+                        this.opponents.set(opponent.id, opponent);
+                        nostr.publishEvent(KIND_BATTLE, { action: "spawn", opponentId: opponent.id, x: opponent.x, y: opponent.y });
+                    }
+                },
+                fight: function(opponentId) {
+                    const opponent = this.opponents.get(opponentId);
+                    if (opponent) {
+                        opponent.health -= 20;
+                        if (opponent.health <= 0) {
+                            game.player.score += 100;
+                            this.opponents.delete(opponentId);
+                            nostr.publishEvent(KIND_BATTLE, { action: "defeat", opponentId });
+                            nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                            ui.updatePlayerProfile();
+                            ui.showToast("Enemy defeated! +100 points");
+                        } else {
+                            nostr.publishEvent(KIND_BATTLE, { action: "hit", opponentId, health: opponent.health });
+                        }
+                    }
+                }
+            },
+            shop: {
+                items: [
+                    { id: "health_potion", emoji: "🧪", name: "Health Potion", cost: 50, effect: () => game.player.health = Math.min(game.player.health + 50, 100) },
+                    { id: "speed_boost", emoji: "🏃", name: "Speed Boost", cost: 100, effect: () => game.powerups.apply({ id: "speed", emoji: "🏃", effect: () => PLAYER_SPEED * 2, duration: 15000 }) },
+                    { id: "fairy", emoji: "🧚", name: "Fairy", cost: 500, effect: () => game.pets.adopt("fairy") }
+                ],
+                buy: function(itemId) {
+                    const item = this.items.find(i => i.id === itemId);
+                    if (item && game.player.score >= item.cost) {
+                        game.player.score -= item.cost;
+                        item.effect();
+                        nostr.publishEvent(KIND_SHOP_PURCHASE, { itemId, cost: item.cost });
+                        nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                        ui.updatePlayerProfile();
+                        ui.showToast(`Bought ${item.name} for ${item.cost} points!`);
+                    } else {
+                        ui.showToast("Not enough points!");
+                    }
+                }
+            },
+            guilds: {
+                list: new Map(),
+                join: function(guildId) {
+                    if (!guildId) return;
+                    if (!this.list.has(guildId)) {
+                        this.list.set(guildId, { members: new Set([game.player.pubkey]), leader: game.player.pubkey });
+                        nostr.publishEvent(KIND_GUILD, { action: "create", guildId });
+                    } else {
+                        this.list.get(guildId).members.add(game.player.pubkey);
+                        nostr.publishEvent(KIND_GUILD, { action: "join", guildId });
+                    }
+                    game.player.guild = guildId;
+                    ui.updatePlayerProfile();
+                    ui.showToast(`Joined guild ${guildId}!`);
+                }
+            },
+            pets: {
+                active: null,
+                adopt: function(petId = "fairy") {
+                    if (!this.active) {
+                        this.active = { id: petId, x: game.player.x, y: game.player.y, boost: petId === "fairy" ? 0.2 : 0.1, level: 1, health: 100 };
+                        game.player.pet = this.active;
+                        nostr.publishEvent(KIND_PET, { action: "adopt", petId: this.active.id });
+                        ui.showToast(`Adopted a ${petId} pet!`);
+                    }
+                },
+                update: function() {
+                    if (this.active) {
+                        this.active.x = game.player.x + 20;
+                        this.active.y = game.player.y;
+                        game.player.score += this.active.boost;
+                        if (game.player.score >= this.active.level * 1000) {
+                            this.active.level += 1;
+                            this.active.boost += 0.05;
+                            ui.showToast(`Pet evolved to Level ${this.active.level}! Boost: +${this.active.boost}/sec`);
+                        }
+                        nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                    }
+                }
+            },
+            tournaments: {
+                active: null,
+                start: function() {
+                    if (!this.active && Math.random() < 0.005) {
+                        this.active = { id: Date.now(), duration: 60000, scores: new Map() };
+                        nostr.publishEvent(KIND_TOURNAMENT, { action: "start", tournamentId: this.active.id, duration: this.active.duration });
+                        ui.showToast("Tournament started! Earn points within 60 seconds!");
+                        setTimeout(() => {
+                            const winner = Array.from(this.active.scores.entries()).reduce((a, b) => a[1] > b[1] ? a : b, [null, 0])[0];
+                            nostr.publishEvent(KIND_TOURNAMENT, { action: "end", tournamentId: this.active.id, winner });
+                            ui.showToast(`Tournament ended! Winner: ${game.users.get(winner)?.profile?.name || winner?.slice(0, 8) || "Unknown"}`);
+                            this.active = null;
+                        }, this.active.duration);
+                    }
+                },
+                update: function() {
+                    if (this.active) this.active.scores.set(game.player.pubkey, game.player.score);
+                }
+            },
+            weather: {
+                current: "clear",
+                change: function() {
+                    const now = Date.now();
+                    if (now - game.lastWeatherChange >= 600000) { // 10 minutes
+                        const types = ["clear", "rain", "storm"];
+                        this.current = types[Math.floor(Math.random() * types.length)];
+                        nostr.publishEvent(KIND_WEATHER, { type: this.current });
+                        ui.showToast(`Weather changed to ${this.current}!`);
+                        game.lastWeatherChange = now;
+                    }
+                }
+            },
+            factions: {
+                list: ["Light", "Shadow"],
+                join: function(faction) {
+                    if (this.list.includes(faction)) {
+                        game.player.faction = faction;
+                        nostr.publishEvent(KIND_FACTION, { faction });
+                        ui.updatePlayerProfile();
+                        ui.showToast(`Joined ${faction} faction!`);
+                    }
+                }
+            },
+            dungeons: {
+                active: null,
+                enter: function() {
+                    if (!this.active) {
+                        this.active = { id: Date.now(), x: Math.random() * WORLD_SIZE, y: Math.random() * WORLD_SIZE, loot: 500 };
+                        game.player.x = this.active.x;
+                        game.player.y = this.active.y;
+                        nostr.publishEvent(KIND_DUNGEON, { action: "enter", dungeonId: this.active.id, x: this.active.x, y: this.active.y });
+                        ui.showToast("Entered dungeon! Survive 30 seconds for loot!");
+                        setTimeout(() => {
+                            game.player.score += this.active.loot;
+                            const item = game.items[Math.floor(Math.random() * 10)];
+                            game.player.inventory.push({ ...item, id: Date.now() });
+                            nostr.publishEvent(KIND_DUNGEON, { action: "complete", dungeonId: this.active.id, loot: this.active.loot });
+                            nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                            ui.updatePlayerProfile();
+                            ui.showToast(`Dungeon completed! +${this.active.loot} points & ${item.emoji} ${item.name}`);
+                            this.active = null;
+                        }, 30000);
+                    }
+                }
+            },
+            stash: {
+                items: [],
+                store: function(item) {
+                    if (!item || !item.id) return;
+                    this.items.push(item);
+                    game.player.inventory = game.player.inventory.filter(i => i.id !== item.id);
+                    nostr.publishEvent(KIND_STASH, { action: "store", item });
+                    ui.showToast(`Stored ${item.emoji} ${item.name} in stash!`);
+                },
+                retrieve: function(itemId) {
+                    const index = this.items.findIndex(i => i.id === itemId);
+                    if (index !== -1) {
+                        const item = this.items.splice(index, 1)[0];
+                        game.player.inventory.push(item);
+                        nostr.publishEvent(KIND_STASH, { action: "retrieve", itemId });
+                        ui.showToast(`Retrieved ${item.emoji} ${item.name} from stash!`);
+                        return item;
+                    } else {
+                        ui.showToast("Item not found in stash!");
+                    }
+                }
+            }
+        };
+
+        const ui = {
+            init: function() {
+                game.canvas.width = window.innerWidth;
+                game.canvas.height = window.innerHeight;
+                game.ctx = game.canvas.getContext('2d');
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'w') game                    .input.up = true;
+                    if (e.key === 'ArrowDown' || e.key === 's') game.input.down = true;
+                    if (e.key === 'ArrowLeft' || e.key === 'a') game.input.left = true;
+                    if (e.key === 'ArrowRight' || e.key === 'd') game.input.right = true;
+                    if (e.key === 'Enter' && !document.activeElement.matches('input, textarea')) {
+                        document.getElementById('chat-input').focus();
+                        e.preventDefault();
+                    }
+                });
+                window.addEventListener('keyup', (e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'w') game.input.up = false;
+                    if (e.key === 'ArrowDown' || e.key === 's') game.input.down = false;
+                    if (e.key === 'ArrowLeft' || e.key === 'a') game.input.left = false;
+                    if (e.key === 'ArrowRight' || e.key === 'd') game.input.right = false;
+                });
+                window.addEventListener('resize', () => {
+                    game.canvas.width = window.innerWidth;
+                    game.canvas.height = window.innerHeight;
+                });
+                document.getElementById('relay-selector').addEventListener('change', (ev) => {
+                    game.activeRelay = ev.target.value;
+                    ui.switchRelay(game.activeRelay);
+                });
+                document.getElementById('add-relay-button').addEventListener('click', () => {
+                    const relayUrl = document.getElementById('custom-relay-input').value.trim();
+                    if (relayUrl && relayUrl.startsWith('wss://')) {
+                        game.relays.add(relayUrl);
+                        ui.updateRelaySelector();
+                        nostr.connectRelay(relayUrl);
+                        document.getElementById('custom-relay-input').value = '';
+                    } else {
+                        ui.showToast('Invalid relay URL (must start with wss://).');
+                    }
+                });
+                document.getElementById('kinds-selector').addEventListener('change', () => {
+                    const val = parseInt(document.getElementById('kinds-selector').value);
+                    game.kinds.clear();
+                    game.kinds.add(val);
+                    game.kinds.add(KIND_SCORE);
+                    game.kinds.add(KIND_PROFILE);
+                    game.kinds.add(KIND_CHAT);
+                    game.kinds.add(KIND_DIRECT_CHAT);
+                    game.kinds.add(KIND_TREASURE);
+                    game.kinds.add(KIND_CHALLENGE);
+                    game.kinds.add(KIND_PET_BATTLE);
+                    nostr.requestAllUsersAndContent();
+                });
+                document.getElementById('add-kind-button').addEventListener('click', () => {
+                    const val = parseInt(document.getElementById('custom-kind-input').value.trim());
+                    if (!isNaN(val)) {
+                        game.kinds.add(val);
+                        ui.updateKindsSelector();
+                        document.getElementById('custom-kind-input').value = '';
+                        nostr.requestAllUsersAndContent();
+                    } else {
+                        ui.showToast('Invalid kind number');
+                    }
+                });
+                document.getElementById('time-filter').addEventListener('change', (e) => {
+                    game.timeFilter = e.target.value;
+                    nostr.requestAllUsersAndContent();
+                });
+                document.getElementById('chat-input').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') ui.sendChat();
+                });
+                document.getElementById('send-chat-button').addEventListener('click', ui.sendChat);
+                document.getElementById('user-popup-close').addEventListener('click', ui.closeUserPopup);
+                document.getElementById('follow-button').addEventListener('click', () => {
+                    const pubkey = document.getElementById('user-popup').dataset.pubkey;
+                    if (pubkey) {
+                        nostr.followUser(pubkey).then(() => {
+                            ui.playSound("success");
+                            ui.showToast('Following user!');
+                            game.player.score += 50;
+                            game.player.interactions += 1;
+                            game.player.follows += 1;
+                            ui.updatePlayerProfile();
+                            nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                            console.log(`[${new Date().toISOString()}] Follow event: ${pubkey}`);
+                        }).catch(err => {
+                            ui.playSound("error");
+                            console.error('Follow failed:', err);
+                            ui.showToast('Follow failed!');
+                        });
+                    }
+                });
+                document.getElementById('chat-button').addEventListener('click', () => {
+                    const pubkey = document.getElementById('user-popup').dataset.pubkey;
+                    if (pubkey) {
+                        const name = document.getElementById('user-popup-name').textContent;
+                        document.getElementById('chat-input').focus();
+                        document.getElementById('chat-input').value = `@${name} `;
+                    }
+                });
+                document.getElementById('trade-button').addEventListener('click', () => {
+                    const pubkey = document.getElementById('user-popup').dataset.pubkey;
+                    if (pubkey && game.player.inventory.length > 0) {
+                        ui.showTradePopup(pubkey);
+                    } else {
+                        ui.showToast("No items in inventory to trade!");
+                    }
+                });
+                document.getElementById('shop-button').addEventListener('click', () => ui.showActionPopup('shop', 'Shop', game.shop.items, item => game.shop.buy(item.id)));
+                document.getElementById('guild-button').addEventListener('click', () => {
+                    ui.showActionPopup('guild', 'Guild', [{ id: "hyrule", name: "Hyrule" }, { id: "gerudo", name: "Gerudo" }], guild => game.guilds.join(guild.id));
+                });
+                document.getElementById('pet-button').addEventListener('click', () => game.pets.adopt());
+                document.getElementById('faction-button').addEventListener('click', () => {
+                    ui.showActionPopup('faction', 'Faction', game.factions.list.map(f => ({ id: f, name: f })), faction => game.factions.join(faction.id));
+                });
+                document.getElementById('dungeon-button').addEventListener('click', () => game.dungeons.enter());
+                document.getElementById('stash-button').addEventListener('click', () => {
+                    ui.showActionPopup('stash', 'Stash', game.stash.items, item => game.stash.retrieve(item.id), game.player.inventory, item => game.stash.store(item));
+                });
+                document.getElementById('mobile-control-up').addEventListener('touchstart', () => { game.input.up = true; game.input.touch.active = true; game.input.touch.button = 'up'; });
+                document.getElementById('mobile-control-up').addEventListener('touchend', () => { game.input.up = false; game.input.touch.active = false; game.input.touch.button = null; });
+                document.getElementById('mobile-control-down').addEventListener('touchstart', () => { game.input.down = true; game.input.touch.active = true; game.input.touch.button = 'down'; });
+                document.getElementById('mobile-control-down').addEventListener('touchend', () => { game.input.down = false; game.input.touch.active = false; game.input.touch.button = null; });
+                document.getElementById('mobile-control-left').addEventListener('touchstart', () => { game.input.left = true; game.input.touch.active = true; game.input.touch.button = 'left'; });
+                document.getElementById('mobile-control-left').addEventListener('touchend', () => { game.input.left = false; game.input.touch.active = false; game.input.touch.button = null; });
+                document.getElementById('mobile-control-right').addEventListener('touchstart', () => { game.input.right = true; game.input.touch.active = true; game.input.touch.button = 'right'; });
+                document.getElementById('mobile-control-right').addEventListener('touchend', () => { game.input.right = false; game.input.touch.active = false; game.input.touch.button = null; });
+                document.getElementById('leaderboard-type').addEventListener('change', ui.updateLeaderboard);
+            },
+            showLoading: (msg) => {
+                document.getElementById('loading-indicator').classList.remove('hide');
+                document.getElementById('loading-status').textContent = msg || '';
+            },
+            hideLoading: () => document.getElementById('loading-indicator').classList.add('hide'),
+            playSound: (type) => {
+                const sounds = { item: "https://example.com/zelda-item.mp3", success: "https://example.com/success.mp3", error: "https://example.com/error.mp3", chat: "https://example.com/chat.mp3" };
+                if (sounds[type]) new Audio(sounds[type]).play().catch(() => {});
+            },
+            updateRelaySelector: () => {
+                const sel = document.getElementById('relay-selector');
+                sel.innerHTML = '';
+                for (let r of game.relays) {
+                    const opt = document.createElement('option');
+                    opt.value = r;
+                    opt.textContent = r;
+                    sel.appendChild(opt);
+                }
+                sel.value = game.activeRelay;
+            },
+            updateKindsSelector: () => {
+                const sel = document.getElementById('kinds-selector');
+                sel.innerHTML = '';
+                for (let k of game.kinds) {
+                    const opt = document.createElement('option');
+                    opt.value = k;
+                    opt.textContent = `Kind ${k}`;
+                    sel.appendChild(opt);
+                }
+            },
+            switchRelay: (relayUrl) => {
+                game.activeRelay = relayUrl;
+                nostr.connectRelay(relayUrl).then(() => nostr.requestAllUsersAndContent());
+            },
+            addChatMessage: (username, message, direct = false) => {
+                const chatMessages = document.getElementById('chat-messages');
+                const div = document.createElement('div');
+                div.classList.add('chat-message');
+                const now = new Date();
+                const sender = username === "You" && !direct ? game.player.profile?.name || game.player.pubkey.slice(0,8) : username;
+                div.innerHTML = `<span class="username">${sender}</span> <span class="timestamp">[${now.toLocaleTimeString()}]</span>: <span class="content">${escapeHTML(message)}</span>`;
+                chatMessages.appendChild(div);
+                setTimeout(() => { chatMessages.scrollTop = chatMessages.scrollHeight; }, 0);
+                if (direct && username !== "System") {
+                    nostr.publishEvent(KIND_DIRECT_CHAT, { to: game.users.get(username)?.pubkey || username, message });
+                    console.log(`[${new Date().toISOString()}] Direct chat event: ${username} - ${message}`);
+                }
+            },
+            sendChat: () => {
+                const chatInput = document.getElementById('chat-input');
+                const message = chatInput.value.trim();
+                if (!message) return;
+                chatInput.value = '';
+                if (message.startsWith('@') && game.player.guild) {
+                    const guildMsg = `[Guild ${game.player.guild}] ${message}`;
+                    nostr.publishEvent(KIND_CHAT, { type: 'guild', message: guildMsg, guild: game.player.guild });
+                    ui.addChatMessage(game.player.profile?.name || game.player.pubkey.slice(0,8), guildMsg);
+                    console.log(`[${new Date().toISOString()}] Guild chat event: ${guildMsg}`);
+                } else {
+                    nostr.publishEvent(KIND_CHAT, { type: 'chat', message });
+                    ui.addChatMessage(game.player.profile?.name || game.player.pubkey.slice(0,8), message);
+                    console.log(`[${new Date().toISOString()}] Chat event: ${message}`);
+                }
+                game.player.chatMessages += 1;
+                ui.playSound("chat");
+            },
+            updatePlayerProfile: () => {
+                const img = document.getElementById('player-profile-image');
+                const nameEl = document.getElementById('player-profile-name');
+                const npubEl = document.getElementById('player-profile-npub');
+                const titleEl = document.getElementById('player-profile-title');
+                const scoreEl = document.getElementById('profile-score');
+                const itemsEl = document.getElementById('profile-items');
+                const interactionsEl = document.getElementById('profile-interactions');
+                const mainScoreDisplay = document.getElementById('score-display');
+                if (game.player.profile) {
+                    img.src = game.player.profile.picture || '/api/placeholder/50/50';
+                    nameEl.textContent = game.player.profile.name;
+                    npubEl.textContent = game.player.pubkey.slice(0, 8);
+                    titleEl.textContent = `${game.player.profile.title || ''} ${game.player.guild ? `[Guild: ${game.player.guild}]` : ''} ${game.player.faction ? `[Faction: ${game.player.faction}]` : ''}`;
+                } else {
+                    img.src = '/api/placeholder/50/50';
+                    nameEl.textContent = `User ${game.player.pubkey?.slice(0,8) || '??'}`;
+                    npubEl.textContent = game.player.pubkey?.slice(0, 8) || '???';
+                    titleEl.textContent = `${game.player.guild ? `[Guild: ${game.player.guild}]` : ''} ${game.player.faction ? `[Faction: ${game.player.faction}]` : ''}`;
+                }
+                scoreEl.textContent = game.player.score;
+                itemsEl.textContent = game.player.inventory.length;
+                interactionsEl.textContent = game.player.interactions;
+                mainScoreDisplay.textContent = `Score: ${game.player.score}`;
+            },
+            updateLeaderboard: () => {
+                const type = document.getElementById('leaderboard-type').value;
+                let arr = Array.from(game.users, ([pubkey, user]) => ({
+                    pubkey,
+                    score: type === "score" ? user.score : type === "items" ? user.itemsCollected || 0 : user.questsCompleted || 0,
+                    profile: user.profile
+                }));
+                arr.sort((a, b) => b.score - a.score);
+                const top10 = arr.slice(0, 10);
+                const container = document.getElementById('leaderboard-entries');
+                container.innerHTML = top10.map((u, i) => `
+                    <div class="leaderboard-entry">
+                        <div class="rank">${i+1}</div>
+                        <div class="name">${u.profile?.name || u.pubkey.slice(0,8)}</div>
+                        <div class="score">${u.score}</div>
+                    </div>
+                `).join('');
+            },
+            showUserPopup: (pubkey) => {
+                const user = game.users.get(pubkey);
+                if (!user) return;
+                const popup = document.getElementById('user-popup');
+                const img = document.getElementById('user-popup-image');
+                const nameEl = document.getElementById('user-popup-name');
+                const npubEl = document.getElementById('user-popup-npub');
+                const notesContainer = document.getElementById('user-notes');
+                popup.dataset.pubkey = pubkey;
+                popup.classList.remove('hide');
+                img.src = user.profile?.picture || '/api/placeholder/50/50';
+                nameEl.textContent = user.profile?.name || pubkey.slice(0,8);
+                npubEl.textContent = pubkey.slice(0, 8);
+                notesContainer.innerHTML = '';
+                if (user.notes) {
+                    user.notes.slice(0, 5).forEach(note => {
+                        const noteDiv = document.createElement('div');
+                        noteDiv.classList.add('user-note');
+                        const contentDiv = document.createElement('div');
+                        contentDiv.classList.add('user-note-content');
+                        contentDiv.innerHTML = escapeHTML(note.content);
+                        const media = extractMedia(note.content);
+                        media.forEach(url => {
+                            if (url.match(/\.(jpg|png|gif)$/i)) {
+                                contentDiv.innerHTML += `<br><img src="${url}" alt="Note image">`;
+                            } else if (url.match(/\.(mp3|wav)$/i)) {
+                                contentDiv.innerHTML += `<br><audio controls src="${url}"></audio>`;
+                            } else if (url.match(/\.(mp4|webm)$/i)) {
+                                contentDiv.innerHTML += `<br><video controls src="${url}"></video>`;
+                            }
+                        });
+                        noteDiv.appendChild(contentDiv);
+                        const timestampDiv = document.createElement('div');
+                        timestampDiv.classList.add('user-note-timestamp');
+                        timestampDiv.textContent = new Date(note.created_at * 1000).toLocaleString();
+                        noteDiv.appendChild(timestampDiv);
+                        const replyDiv = document.createElement('div');
+                        replyDiv.classList.add('user-note-reply');
+                        const replyInput = document.createElement('input');
+                        replyInput.type = 'text';
+                        replyInput.placeholder = 'Type a reply...';
+                        const replyButton = document.createElement('button');
+                        replyButton.textContent = "Reply";
+                        replyButton.addEventListener('click', () => {
+                            const reply = replyInput.value.trim();
+                            if (reply) {
+                                nostr.publishEvent(KIND_NOTE, reply, [["e", note.id]]);
+                                ui.showToast("Reply posted!");
+                                replyInput.value = '';
+                                console.log(`[${new Date().toISOString()}] Reply event: ${note.id} - ${reply}`);
+                            }
+                        });
+                        replyDiv.appendChild(replyInput);
+                        replyDiv.appendChild(replyButton);
+                        noteDiv.appendChild(replyDiv);
+                        if (user.pet) {
+                            const battleButton = document.createElement('button');
+                            battleButton.textContent = "Pet Battle";
+                            battleButton.addEventListener('click', () => {
+                                if (game.petBattles.challenge(pubkey)) {
+                                    noteDiv.classList.add('pet-clash');
+                                    setTimeout(() => noteDiv.classList.remove('pet-clash'), 500);
+                                } else {
+                                    ui.showToast("Pet battle failed! Both players need pets.");
+                                }
+                            });
+                            replyDiv.appendChild(battleButton);
+                        }
+                        notesContainer.appendChild(noteDiv);
+                    });
+                }
+                popup.style.left = `${Math.min(Math.max(game.canvas.width / 2 - 200, 10), game.canvas.width - 410)}px`;
+                popup.style.top = `${Math.min(Math.max(game.canvas.height / 2 - 250, 60), game.canvas.height - 510)}px`;
+            },
+            closeUserPopup: () => {
+                document.getElementById('user-popup').classList.add('hide');
+                document.getElementById('user-popup').dataset.pubkey = '';
+            },
+            updateQuestDisplay: function() {
+                const questDiv = document.getElementById('quest-display');
+                if (game.quests.active) {
+                    questDiv.innerHTML = `<strong>Quest:</strong> ${game.quests.active.name}<br>${game.quests.active.desc} (${game.quests.active.progress}/${game.quests.active.target})`;
+                } else {
+                    questDiv.innerHTML = `<strong>Quest:</strong> None active`;
+                }
+                if (game.challenges.active && !game.challenges.active.completed) {
+                    questDiv.innerHTML += `<br><strong>Challenge:</strong> ${game.challenges.active.name} (${game.challenges.active.progress}/${game.challenges.active.target})`;
+                }
+            },
+            showToast: (message, targetPubkey = null) => {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.classList.add('toast');
+                toast.textContent = message;
+                if (targetPubkey && targetPubkey === game.player.pubkey) {
+                    container.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                } else if (!targetPubkey) {
+                    container.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                }
+            },
+            showActionPopup: (type, title, items, onSelect, secondaryItems = null, onSecondarySelect = null) => {
+                const popup = document.getElementById('action-popup');
+                popup.innerHTML = `<h3>${title}</h3><div class="item-list"></div><button id="action-close">Close</button>`;
+                popup.classList.remove('hide');
+                const list = popup.querySelector('.item-list');
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.classList.add('item');
+                    div.textContent = `${item.emoji} ${item.name}${item.cost ? ` - ${item.cost} points` : ''}`;
+                    div.addEventListener('click', () => {
+                        onSelect(item);
+                        popup.classList.add('hide');
+                    });
+                    list.appendChild(div);
+                });
+                if (secondaryItems && onSecondarySelect) {
+                    const secondaryTitle = document.createElement('h3');
+                    secondaryTitle.textContent = "Your Inventory";
+                    list.appendChild(secondaryTitle);
+                    secondaryItems.forEach(item => {
+                        const div = document.createElement('div');
+                        div.classList.add('item');
+                        div.textContent = `${item.emoji} ${item.name}`;
+                        div.addEventListener('click', () => {
+                            onSecondarySelect(item);
+                            popup.classList.add('hide');
+                        });
+                        list.appendChild(div);
+                    });
+                }
+                document.getElementById('action-close').addEventListener('click', () => popup.classList.add('hide'));
+            },
+            showTradePopup: (pubkey) => {
+                const popup = document.getElementById('trade-popup');
+                popup.innerHTML = `<h3>Trade with ${game.users.get(pubkey)?.profile?.name || pubkey.slice(0,8)}</h3><div class="item-list"></div><button id="trade-close">Cancel</button>`;
+                popup.classList.remove('hide');
+                const list = popup.querySelector('.item-list');
+                game.player.inventory.forEach(item => {
+                    const div = document.createElement('div');
+                    div.classList.add('item');
+                    div.textContent = `${item.emoji} ${item.name}`;
+                    div.addEventListener('click', () => {
+                        const offerId = Date.now();
+                        const expires = offerId + 86400000; // 24 hours
+                        game.trades.set(offerId, { from: game.player.pubkey, to: pubkey, itemId: item.id, expires });
+                        nostr.publishEvent(KIND_TRADE_OFFER, { to: pubkey, itemId: item.id, expires });
+                        ui.addChatMessage("System", `Trade offer sent to ${game.users.get(pubkey)?.profile?.name || pubkey.slice(0,8)}: ${item.emoji} ${item.name}`, true);
+                        ui.showToast(`Trade offer sent: ${item.emoji} ${item.name}`);
+                        console.log(`[${new Date().toISOString()}] Trade offer event: ${pubkey} - ${item.id}`);
+                        popup.classList.add('hide');
+                        ui.closeUserPopup();
+                        nostr.publishEvent(KIND_DIRECT_CHAT, { to: pubkey, message: `You have a trade offer from ${game.player.profile?.name || game.player.pubkey.slice(0,8)}! Check your popup.` });
+                        const recipient = game.users.get(pubkey);
+                        if (recipient) ui.showToast(`Trade offer received from ${game.player.profile?.name || game.player.pubkey.slice(0,8)}!`, recipient.pubkey);
+                    });
+                    list.appendChild(div);
+                });
+                document.getElementById('trade-close').addEventListener('click', () => popup.classList.add('hide'));
+            },
+            updateWeatherEffects: function() {
+                const overlay = document.getElementById('weather-overlay');
+                overlay.innerHTML = '';
+                if (game.weather.current === "rain") {
+                    for (let i = 0; i < 50; i++) {
+                        const drop = document.createElement('div');
+                        drop.classList.add('raindrop');
+                        drop.style.left = `${Math.random() * 100}%`;
+                        drop.style.animationDelay = `${Math.random()}s`;
+                        overlay.appendChild(drop);
+                    }
+                } else if (game.weather.current === "storm") {
+                    for (let i = 0; i < 50; i++) {
+                        const drop = document.createElement('div');
+                        drop.classList.add('raindrop');
+                        drop.style.left = `${Math.random() * 100}%`;
+                        drop.style.animationDelay = `${Math.random()}s`;
+                        overlay.appendChild(drop);
+                    }
+                    const lightning = document.createElement('div');
+                    lightning.classList.add('lightning');
+                    lightning.style.animationDelay = `${Math.random() * 5}s`;
+                    overlay.appendChild(lightning);
+                    setInterval(() => lightning.style.display = Math.random() < 0.1 ? 'block' : 'none', 1000);
+                }
+            }
+        };
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, (c) => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": "'" }[c]));
+        }
+
+        function extractMedia(content) {
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            return (content.match(urlRegex) || []).filter(url => url.match(/\.(jpg|png|gif|mp3|wav|mp4|webm)$/i));
+        }
+
+        const nostr = {
+            isAvailable: async (timeout = 3000) => {
+                return new Promise((resolve) => {
+                    if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                        resolve(true);
+                        return;
+                    }
+                    const timer = setTimeout(() => resolve(false), timeout);
+                    const interval = setInterval(() => {
+                        if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+                            clearInterval(interval);
+                            clearTimeout(timer);
+                            resolve(true);
+                        }
+                    }, 100);
+                });
+            },
+            getPublicKey: async () => await window.nostr.getPublicKey(),
+            signEvent: async (evt) => await window.nostr.signEvent(evt),
+            connectRelay: (url) => {
+                return new Promise((resolve, reject) => {
+                    if (game.relayConnections.has(url) && game.relayConnections.get(url).readyState === WebSocket.OPEN) {
+                        resolve(game.relayConnections.get(url));
+                        return;
+                    }
+                    let attempts = 0;
+                    const maxAttempts = 3;
+                    const attemptConnect = (delay = 1000) => {
+                        attempts++;
+                        const ws = new WebSocket(url);
+                        ws.onopen = () => {
+                            console.log(`Connected to relay ${url}`);
+                            game.relayConnections.set(url, ws);
+                            resolve(ws);
+                        };
+                        ws.onerror = (err) => {
+                            console.warn(`Error on relay ${url}`, err);
+                            if (attempts < maxAttempts) {
+                                setTimeout(() => attemptConnect(delay * 2), delay);
+                            } else {
+                                reject(new Error(`Failed to connect to ${url} after ${maxAttempts} tries`));
+                            }
+                        };
+                        ws.onclose = () => {
+                            console.log(`Relay ${url} closed`);
+                            game.relayConnections.delete(url);
+                            if (game.running) setTimeout(() => nostr.connectRelay(url), 5000);
+                        };
+                        ws.onmessage = (event) => {
+                            let data;
+                            try {
+                                data = JSON.parse(event.data);
+                            } catch(e) { return; }
+                            nostr.handleRelayMessage(url, data);
+                        };
+                    };
+                    attemptConnect();
+                });
+            },
+            handleRelayMessage: (relayUrl, data) => {
+                if (!Array.isArray(data)) return;
+                const [type, subId, evt] = data;
+                if (type === 'EVENT') nostr.handleEvent(evt);
+            },
+            handleEvent: (event) => {
+                if (!event || !event.pubkey) return;
+                console.log(`[${new Date().toISOString()}] Nostr event received: Kind ${event.kind}, Pubkey ${event.pubkey}, Content ${event.content}`);
+                if (!game.users.has(event.pubkey)) {
+                    const hash = CryptoJS.SHA256(event.pubkey).toString();
+                    const x = parseInt(hash.substr(0,8),16) % WORLD_SIZE;
+                    const y = parseInt(hash.substr(8,8),16) % WORLD_SIZE;
+                    game.users.set(event.pubkey, {
+                        pubkey: event.pubkey,
+                        profile: null,
+                        x, y,
+                        notes: [],
+                        score: 0,
+                        itemsCollected: 0,
+                        questsCompleted: 0,
+                        guild: null,
+                        pet: null,
+                        inventory: [],
+                        bobOffset: 0
+                    });
+                }
+                const user = game.users.get(event.pubkey);
+                switch(event.kind) {
+                    case KIND_PROFILE:
+                        try {
+                            const meta = JSON.parse(event.content);
+                            user.profile = {
+                                name: meta.name || meta.display_name || event.pubkey.slice(0,8),
+                                picture: meta.picture || "/api/placeholder/50/50",
+                                about: meta.about || "",
+                                avatarColor: meta.avatarColor || "#FFFFFF",
+                                title: meta.title || ""
+                            };
+                            console.log(`Profile updated for ${event.pubkey}: ${JSON.stringify(user.profile)}`);
+                            if (event.pubkey === game.player.pubkey) {
+                                game.player.profile = user.profile;
+                                ui.updatePlayerProfile();
+                            }
+                        } catch(e) { console.error('Profile parse error:', e); }
+                        break;
+                    case KIND_NOTE:
+                        user.notes.push({ id: event.id, content: event.content, created_at: event.created_at });
+                        user.notes.sort((a,b) => b.created_at - a.created_at);
+                        if (event.pubkey === game.player.pubkey) game.player.notesPosted += 1;
+                        if (event.content.startsWith("Title set to:")) {
+                            user.profile.title = event.content.split("Title set to:")[1].trim();
+                            if (event.pubkey === game.player.pubkey) game.player.profile.title = user.profile.title;
+                            ui.updatePlayerProfile();
+                        }
+                        break;
+                    case KIND_CONTACTS:
+                        user.followList = event.tags.filter(t => t[0] === 'p');
+                        break;
+                    case KIND_SCORE:
+                        try {
+                            const data = JSON.parse(event.content);
+                            if (data.score && data.score > user.score) {
+                                user.score = parseInt(data.score);
+                                if (event.pubkey === game.player.pubkey) game.player.score = user.score;
+                            }
+                            if (data.level && event.pubkey === game.player.pubkey) game.player.level = data.level;
+                        } catch(e) {}
+                        break;
+                    case KIND_CHAT:
+                        try {
+                            const data = JSON.parse(event.content);
+                            if (data.message) {
+                                if (data.type === 'guild' && game.player.guild === data.guild) {
+                                    ui.addChatMessage(user.profile?.name || event.pubkey.slice(0,8), data.message);
+                                } else if (data.type === 'chat' && event.pubkey !== game.player.pubkey) {
+                                    ui.addChatMessage(user.profile?.name || event.pubkey.slice(0,8), data.message);
+                                }
+                            }
+                        } catch(e) {}
+                        break;
+                    case KIND_DIRECT_CHAT:
+                        try {
+                            const data = JSON.parse(event.content);
+                            if (data.to === game.player.pubkey) {
+                                ui.addChatMessage(`${user.profile?.name || event.pubkey.slice(0,8)}`, data.message, true);
+                            }
+                        } catch(e) {}
+                        break;
+                    case KIND_ITEM_COLLECTION:
+                        try {
+                            const data = JSON.parse(event.content);
+                            if (data.id) game.world.collectibles = game.world.collectibles.filter(c => c.id !== data.id);
+                            if (event.pubkey === game.player.pubkey) {
+                                const item = game.items.find(i => i.id === data.itemId);
+                                if (item) game.player.inventory.push({ ...item, id: Date.now() });
+                            }
+                        } catch(e) {}
+                        break;
+                    case KIND_QUEST_START:
+                        if (event.pubkey === game.player.pubkey) {
+                            const data = JSON.parse(event.content);
+                            game.quests.active = game.quests.types.find(q => q.id === data.questId);
+                            game.quests.active.progress = 0;
+                            ui.updateQuestDisplay();
+                        }
+                        break;
+                    case KIND_QUEST_COMPLETE:
+                        user.questsCompleted += 1;
+                        user.score += JSON.parse(event.content).reward;
+                        if (event.pubkey === game.player.pubkey) game.player.score = user.score;
+                        break;
+                    case KIND_ACHIEVEMENT:
+                        if (Math.hypot(game.player.x - user.x, game.player.y - user.y) < 500) {
+                            ui.addChatMessage("System", `${user.profile?.name || event.pubkey.slice(0,8)} earned an achievement!`);
+                        }
+                        break;
+                    case KIND_POWERUP:
+                        ui.addChatMessage("System", `${user.profile?.name || event.pubkey.slice(0,8)} used a ${JSON.parse(event.content).powerupId} power-up!`);
+                        break;
+                    case KIND_TRADE_OFFER:
+                        const offer = JSON.parse(event.content);
+                        if (offer.to === game.player.pubkey) {
+                            const offerId = event.created_at * 1000;
+                            game.trades.set(offerId, { from: event.pubkey, to: game.player.pubkey, itemId: offer.itemId, expires: offer.expires });
+                            ui.addChatMessage(`${user.profile?.name || event.pubkey.slice(0,8)}`, `Trade offer: ${game.items.find(i => i.id === offer.itemId)?.emoji} ${offer.itemId}. Respond with an item!`, true);
+                            ui.showToast(`Trade offer received from ${user.profile?.name || event.pubkey.slice(0,8)}!`);
+                        }
+                        break;
+                    case KIND_TRADE_RESPONSE:
+                        const response = JSON.parse(event.content);
+                        if (response.from === game.player.pubkey) {
+                            const trade = game.trades.get(parseInt(response.offerId));
+                            if (trade) {
+                                trade.responseId = event.id;
+                                trade.responseContent = event.content;
+                                ui.addChatMessage("System", `You offered ${game.items.find(i => i.id === response.itemId)?.emoji} ${response.itemId} in response. Waiting for acceptance...`, true);
+                            }
+                        }
+                        break;
+                    case KIND_TRADE_ACCEPT:
+                        const accept = JSON.parse(event.content);
+                        const trade = game.trades.get(parseInt(accept.offerId));
+                        if (trade && trade.responseId === accept.responseId && event.pubkey === trade.from && Date.now() < trade.expires) {
+                            const initiator = game.users.get(trade.from);
+                            const responder = game.users.get(trade.to);
+                            const offerItem = game.items.find(i => i.id === trade.itemId);
+                            const responseItem = game.items.find(i => i.id === JSON.parse(trade.responseContent).itemId);
+                            initiator.inventory.push({ ...responseItem, id: Date.now() });
+                            responder.inventory.push({ ...offerItem, id: Date.now() });
+                            initiator.inventory = initiator.inventory.filter(i => i.id !== trade.itemId);
+                            responder.inventory = responder.inventory.filter(i => i.id !== JSON.parse(trade.responseContent).itemId);
+                            if (event.pubkey === game.player.pubkey) {
+                                ui.addChatMessage("System", `Trade completed! You received ${offerItem.emoji} ${offerItem.name}`, true);
+                            } else if (trade.to === game.player.pubkey) {
+                                ui.addChatMessage("System", `Trade completed! You received ${responseItem.emoji} ${responseItem.name}`, true);
+                            }
+                            game.trades.delete(accept.offerId);
+                            console.log(`[${new Date().toISOString()}] Trade accepted: ${trade.from} <-> ${trade.to}`);
+                        }
+                        break;
+                    case KIND_EVENT:
+                        const evt = JSON.parse(event.content);
+                        game.worldEvents.active = { type: evt.eventType, duration: evt.duration, start: Date.now() };
+                        setTimeout(() => game.worldEvents.active = null, evt.duration);
+                        break;
+                    case KIND_PORTAL:
+                        const portalData = JSON.parse(event.content);
+                        if (event.pubkey !== game.player.pubkey) {
+                            const user = game.users.get(event.pubkey);
+                            const portal = game.portals.list.find(p => p.id === portalData.portalId);
+                            if (user && portal) {
+                                user.x = portal.x;
+                                user.y = portal.y;
+                            }
+                        }
+                        break;
+                    case KIND_BATTLE:
+                        const battleData = JSON.parse(event.content);
+                        if (battleData.action === "spawn") {
+                            game.battles.opponents.set(battleData.opponentId, { id: battleData.opponentId, x: battleData.x, y: battleData.y, health: 100, damage: 10 });
+                        } else if (battleData.action === "defeat") {
+                            game.battles.opponents.delete(battleData.opponentId);
+                        } else if (battleData.action === "hit") {
+                            const op = game.battles.opponents.get(battleData.opponentId);
+                            if (op) op.health = battleData.health;
+                        }
+                        break;
+                    case KIND_SHOP_PURCHASE:
+                        break;
+                    case KIND_GUILD:
+                        const guildData = JSON.parse(event.content);
+                        if (guildData.action === "create") {
+                            game.guilds.list.set(guildData.guildId, { members: new Set([event.pubkey]), leader: event.pubkey });
+                        } else if (guildData.action === "join") {
+                            game.guilds.list.get(guildData.guildId)?.members.add(event.pubkey);
+                        }
+                        if (event.pubkey !== game.player.pubkey) game.users.get(event.pubkey).guild = guildData.guildId;
+                        break;
+                    case KIND_PET:
+                        if (event.pubkey !== game.player.pubkey) {
+                            const petData = JSON.parse(event.content);
+                            game.users.get(event.pubkey).pet = { id: petData.petId, x: user.x + 20, y: user.y, health: 100 };
+                        } else {
+                            game.player.pet = game.pets.active;
+                        }
+                        break;
+                    case KIND_TOURNAMENT:
+                        const tournData = JSON.parse(event.content);
+                        if (tournData.action === "start") {
+                            game.tournaments.active = { id: tournData.tournamentId, duration: tournData.duration, scores: new Map() };
+                        } else if (tournData.action === "end") {
+                            game.tournaments.active = null;
+                        }
+                        break;
+                    case KIND_WEATHER:
+                        game.weather.current = JSON.parse(event.content).type;
+                        game.lastWeatherChange = event.created_at * 1000;
+                        ui.updateWeatherEffects();
+                        break;
+                    case KIND_FACTION:
+                        if (event.pubkey !== game.player.pubkey) game.users.get(event.pubkey).faction = JSON.parse(event.content).faction;
+                        break;
+                    case KIND_DUNGEON:
+                        const dungData = JSON.parse(event.content);
+                        if (dungData.action === "enter" && event.pubkey !== game.player.pubkey) {
+                            const user = game.users.get(event.pubkey);
+                            user.x = dungData.x;
+                            user.y = dungData.y;
+                        }
+                        break;
+                    case KIND_STASH:
+                        const stashData = JSON.parse(event.content);
+                        if (event.pubkey === game.player.pubkey) {
+                            if (stashData.action === "store") {
+                                game.stash.items.push(stashData.item);
+                            } else if (stashData.action === "retrieve") {
+                                game.stash.items = game.stash.items.filter(i => i.id !== stashData.itemId);
+                            }
+                        }
+                        break;
+                    case KIND_TREASURE:
+                        const treasureData = JSON.parse(event.content);
+                        if (treasureData.action === "spawn") {
+                            game.world.treasures.push({ id: treasureData.treasureId, x: treasureData.x, y: treasureData.y, unlocking: false, unlockStart: 0 });
+                        } else if (treasureData.action === "open") {
+                            game.world.treasures = game.world.treasures.filter(t => t.id !== treasureData.treasureId);
+                        }
+                        break;
+                    case KIND_CHALLENGE:
+                        const challengeData = JSON.parse(event.content);
+                        if (event.pubkey === game.player.pubkey) {
+                            if (challengeData.action === "start") {
+                                game.challenges.active = game.challenges.types.find(c => c.id === challengeData.challengeId);
+                                game.challenges.active.progress = 0;
+                                game.challenges.active.completed = false;
+                            } else if (challengeData.action === "complete") {
+                                game.challenges.active.completed = true;
+                            }
+                        }
+                        break;
+                    case KIND_PET_BATTLE:
+                        const battle = JSON.parse(event.content);
+                        if (battle.winner === game.player.pubkey) {
+                            game.player.score += 50;
+                            game.users.get(battle.loser).pet.health = Math.max(0, game.users.get(battle.loser).pet.health - 10);
+                            ui.showToast(`You won the pet battle! +50 points`);
+                        } else if (battle.loser === game.player.pubkey) {
+                            game.player.pet.health = Math.max(0, game.player.pet.health - 10);
+                            game.users.get(battle.winner).score += 50;
+                            ui.showToast(`You lost the pet battle! Pet health -10`);
+                        }
+                        ui.updatePlayerProfile();
+                        break;
+                }
+                ui.updateLeaderboard();
+            },
+            requestProfile: (pubkey) => {
+                const subId = "profile-" + pubkey.slice(0,8);
+                const filter = { kinds: [KIND_PROFILE], authors: [pubkey], limit: 1 };
+                const msg = ["REQ", subId, filter];
+                for (let [r, ws] of game.relayConnections) {
+                    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+                }
+            },
+            requestContacts: (pubkey) => {
+                return new Promise((resolve) => {
+                    const subId = "contacts-" + pubkey.slice(0,8);
+                    const filter = { kinds: [KIND_CONTACTS], authors: [pubkey], limit: 1 };
+                    const msg = ["REQ", subId, filter];
+                    let latestEvent = null;
+                    const tempHandler = function(event) {
+                        if (event.kind === KIND_CONTACTS && event.pubkey === pubkey) {
+                            if (!latestEvent || event.created_at > latestEvent.created_at) {
+                                latestEvent = event;
+                            }
+                        }
+                    };
+                    const originalHandler = nostr.handleEvent;
+                    nostr.handleEvent = (evt) => {
+                        tempHandler(evt);
+                        originalHandler(evt);
+                    };
+                    for (let [r, ws] of game.relayConnections) {
+                        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+                    }
+                    setTimeout(() => {
+                        nostr.handleEvent = originalHandler;
+                        resolve(latestEvent ? latestEvent.tags.filter(t => t[0] === 'p') : []);
+                    }, 2000);
+                });
+            },
+            requestPlayerProgress: (pubkey) => {
+                return new Promise((resolve) => {
+                    const subId = "score-" + pubkey.slice(0,8);
+                    const filter = { kinds: [KIND_SCORE], authors: [pubkey], limit: 1 };
+                    const msg = ["REQ", subId, filter];
+                    let latestScore = 0;
+                    let latestLevel = 1;
+                    let latestCreatedAt = 0;
+                    const tempHandler = function(event) {
+                        if (event.kind === KIND_SCORE && event.pubkey === pubkey) {
+                            try {
+                                const data = JSON.parse(event.content);
+                                if (data.score && event.created_at > latestCreatedAt) {
+                                    latestScore = parseInt(data.score);
+                                    latestLevel = data.level || 1;
+                                    latestCreatedAt = event.created_at;
+                                }
+                            } catch(e) {}
+                        }
+                    };
+                    const originalHandler = nostr.handleEvent;
+                    nostr.handleEvent = (evt) => {
+                        tempHandler(evt);
+                        originalHandler(evt);
+                    };
+                    for (let [r, ws] of game.relayConnections) {
+                        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+                    }
+                    setTimeout(() => {
+                        nostr.handleEvent = originalHandler;
+                        resolve({ score: latestScore, level: latestLevel });
+                    }, 2000);
+                });
+            },
+            requestAllUsersAndContent: () => {
+                ui.showLoading('Loading relay data...');
+                const now = Math.floor(Date.now() / 1000);
+                let since = 0;
+                switch (game.timeFilter) {
+                    case 'hour': since = now - 3600; break;
+                    case 'day': since = now - 86400; break;
+                    case 'month': since = now - 2592000; break;
+                }
+                const filter = { kinds: [KIND_NOTE, KIND_SCORE, KIND_PROFILE, KIND_CHAT, KIND_DIRECT_CHAT, KIND_TRADE_OFFER, KIND_TRADE_RESPONSE, KIND_TRADE_ACCEPT, KIND_TREASURE, KIND_CHALLENGE, KIND_PET_BATTLE], since, limit: 2000 };
+                const subId = "all-" + Math.random().toString(36).slice(2,8);
+                const msg = ["REQ", subId, filter];
+                const ws = game.relayConnections.get(game.activeRelay);
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify(msg));
+                    setTimeout(() => ui.hideLoading(), 3000);
+                } else {
+                    nostr.connectRelay(game.activeRelay).then(newWs => {
+                        newWs.send(JSON.stringify(msg));
+                        setTimeout(() => ui.hideLoading(), 3000);
+                    }).catch(err => {
+                        console.error(err);
+                        ui.hideLoading();
+                    });
+                }
+            },
+            publishEvent: async (kind, content, tags = []) => {
+                if (!game.player.pubkey) return;
+                const evt = {
+                    kind,
+                    pubkey: game.player.pubkey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags,
+                    content: (typeof content === 'string') ? content : JSON.stringify(content)
+                };
+                try {
+                    const signed = await nostr.signEvent(evt);
+                    for (let [r, ws] of game.relayConnections) {
+                        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(["EVENT", signed]));
+                    }
+                    console.log(`[${new Date().toISOString()}] Event published: Kind ${kind}, Content ${evt.content}`);
+                    return signed;
+                } catch (e) {
+                    console.error('Sign event failed:', e);
+                    ui.showToast('Event publishing failed!');
+                }
+            },
+            followUser: async (pubkey) => {
+                const existingContacts = await nostr.requestContacts(game.player.pubkey);
+                const newTags = [...existingContacts, ["p", pubkey]];
+                return nostr.publishEvent(KIND_CONTACTS, "", newTags);
+            }
+        };
+
+        const gameLoop = {
+            start: function() {
+                game.running = true;
+                requestAnimationFrame(gameLoop.loop);
+            },
+            loop: function(timestamp) {
+                if (!game.running) return;
+                let deltaTime = (timestamp - game.lastFrameTime) / 1000;
+                game.lastFrameTime = timestamp;
+                game.animationFrame = (game.animationFrame + 1) % 60;
+                gameLoop.update(deltaTime);
+                gameLoop.draw();
+                requestAnimationFrame(gameLoop.loop);
+            },
+            update: function(dt) {
+                let speed = PLAYER_SPEED;
+                if (game.player.faction === "Light") speed *= 1.1;
+                if (game.weather.current === "storm") speed *= 0.75;
+                if (game.powerups.active && game.powerups.active.id === "speed") speed = game.powerups.active.effect();
+                let dx = 0, dy = 0;
+                if (game.input.up) dy -= 1;
+                if (game.input.down) dy += 1;
+                if (game.input.left) dx -= 1;
+                if (game.input.right) dx += 1;
+                if (dx !== 0 || dy !== 0) {
+                    let factor = dx !== 0 && dy !== 0 ? Math.sqrt(2) / 2 : 1;
+                    dx *= factor;
+                    dy *= factor;
+                    game.player.x += dx * speed * dt;
+                    game.player.y += dy * speed * dt;
+                    game.player.bobOffset = Math.sin(game.animationFrame * 0.2) * 5;
+                } else {
+                    game.player.bobOffset = 0;
+                }
+                game.player.x = Math.max(0, Math.min(game.player.x, WORLD_SIZE));
+                game.player.y = Math.max(0, Math.min(game.player.y, WORLD_SIZE));
+                game.player.distanceTraveled += Math.abs(dx * speed * dt) + Math.abs(dy * speed * dt);
+
+                game.users.forEach(user => {
+                    if (user !== game.player && (user.input?.up || user.input?.down || user.input?.left || user.input?.right)) {
+                        user.bobOffset = Math.sin(game.animationFrame * 0.2) * 5;
+                    } else {
+                        user.bobOffset = 0;
+                    }
+                });
+
+                game.camera.x = game.player.x;
+                game.camera.y = game.player.y;
+
+                for (let i = 0; i < game.world.collectibles.length; i++) {
+                    let item = game.world.collectibles[i];
+                    let dist = Math.hypot(game.player.x - item.x, game.player.y - item.y);
+                    if (dist < 30) {
+                        if (item.type === 'powerup') {
+                            game.powerups.apply(item);
+                        } else {
+                            let multiplier = (game.powerups.active && game.powerups.active.id === "score_boost") ? game.powerups.active.effect() : 1;
+                            if (game.weather.current === "storm") multiplier *= 2;
+                            if (game.player.faction === "Shadow") multiplier *= 1.05;
+                            game.player.score += item.value * multiplier;
+                            game.player.inventory.push({ ...item, id: Date.now() });
+                            if (item.emoji === "💰") game.player.itemsCollected += 1;
+                            if (item.emoji === "💎") game.player.gemsCollected += 1;
+                            if (item.rarity === "1/1" || item.rarity === "10/10") game.player.treasuresCollected += 1;
+                        }
+                        nostr.publishEvent(KIND_ITEM_COLLECTION, { id: item.id, itemId: item.id });
+                        game.world.collectibles.splice(i, 1);
+                        i--;
+                        ui.playSound("item");
+                        nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                        ui.updatePlayerProfile();
+                    }
+                }
+
+                for (let i = 0; i < game.world.treasures.length; i++) {
+                    let treasure = game.world.treasures[i];
+                    let dist = Math.hypot(game.player.x - treasure.x, game.player.y - treasure.y);
+                    if (dist < 30 && !treasure.unlocking) {
+                        game.treasures.open(treasure.id);
+                    }
+                }
+
+                game.users.forEach((user, pubkey) => {
+                    if (pubkey === game.player.pubkey) return;
+                    const dist = Math.hypot(game.player.x - user.x, game.player.y - user.y);
+                    if (dist < 50) {
+                        if (document.getElementById('user-popup').dataset.pubkey !== pubkey) {
+                            ui.showUserPopup(pubkey);
+                            document.addEventListener('keydown', (e) => {
+                                if ((e.key === 'e' || e.key === ' ') && dist < 50) {
+                                    game.player.interactions += 1;
+                                    game.player.score += 20;
+                                    nostr.publishEvent(KIND_SCORE, { score: game.player.score });
+                                    ui.updatePlayerProfile();
+                                    ui.playSound("success");
+                                    ui.showToast("Interacted with user! +20 points");
+                                }
+                            }, { once: true });
+                        }
+                    } else if (document.getElementById('user-popup').dataset.pubkey === pubkey) {
+                        ui.closeUserPopup();
+                    }
+                });
+
+                game.portals.list.forEach(p => {
+                    if (Math.hypot(game.player.x - p.x, game.player.y - p.y) < 50) game.portals.use(p.id);
+                });
+                game.battles.spawn();
+                game.battles.opponents.forEach((op, id) => {
+                    if (Math.hypot(game.player.x - op.x, game.player.y - op.y) < 50) game.battles.fight(id);
+                });
+                game.tournaments.start();
+                game.tournaments.update();
+                game.weather.change();
+                game.pets.update();
+                game.treasures.spawn();
+                game.challenges.check();
+
+                game.quests.update();
+                game.achievements.check();
+                if (game.weather.current !== "rain") game.powerups.spawn();
+                game.worldEvents.spawn();
+                game.levelUp();
+            },
+            draw: function() {
+                const ctx = game.ctx;
+                ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+
+                let offsetX = Math.floor(game.camera.x - game.canvas.width / 2);
+                let offsetY = Math.floor(game.camera.y - game.canvas.height / 2);
+
+                for (let c of game.world.collectibles) {
+                    let screenX = c.x - offsetX;
+                    let screenY = c.y - offsetY;
+                    ctx.save();
+                    ctx.font = "16px 'Press Start 2P'";
+                    ctx.textAlign = "center";
+                    ctx.fillText(c.emoji, screenX, screenY);
+                    if (Math.hypot(game.player.x - c.x, game.player.y - c.y) < 30) {
+                        const effect = document.createElement('div');
+                        effect.classList.add('collectible-effect');
+                        effect.style.left = `${screenX - 20}px`;
+                        effect.style.top = `${screenY - 20}px`;
+                        document.getElementById('game-container').appendChild(effect);
+                        setTimeout(() => effect.remove(), 500);
+                    }
+                    ctx.restore();
+                }
+
+                for (let t of game.world.treasures) {
+                    let screenX = t.x - offsetX;
+                    let screenY = t.y - offsetY;
+                    ctx.save();
+                    ctx.font = "20px 'Press Start 2P'";
+                    ctx.textAlign = "center";
+                    ctx.fillText("🎁", screenX, screenY);
+                    if (t.unlocking) {
+                        const elapsed = (Date.now() - t.unlockStart) / 1000;
+                        ctx.fillStyle = "rgba(255, 215, 0, 0.5)";
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY, 15 + elapsed * 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+
+                game.portals.list.forEach(p => {
+                    let screenX = p.x - offsetX;
+                    let screenY = p.y - offsetY;
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(screenX - 15, screenY - 15, 30, 30);
+                });
+
+                game.battles.opponents.forEach(op => {
+                    let screenX = op.x - offsetX;
+                    let screenY = op.y - offsetY;
+                    ctx.fillStyle = "#FF0000";
+                    ctx.fillRect(screenX - 10, screenY - 10, 20, 20);
+                });
+
+                if (game.dungeons.active) {
+                    let screenX = game.dungeons.active.x - offsetX;
+                    let screenY = game.dungeons.active.y - offsetY;
+                    ctx.fillStyle = "#800080";
+                    ctx.fillRect(screenX - 20, screenY - 20, 40, 40);
+                }
+
+                game.users.forEach((user, pubkey) => {
+                    const screenX = user.x - offsetX;
+                    const screenY = user.y - offsetY + user.bobOffset;
+                    ctx.save();
+
+                    if (user.profile?.picture) {
+                        const img = new Image();
+                        img.src = user.profile.picture;
+                        img.onerror = () => {
+                            ctx.fillStyle = user.profile?.avatarColor || "#FFA";
+                            ctx.beginPath();
+                            ctx.arc(screenX, screenY - 15, 10, 0, Math.PI * 2);
+                            ctx.fill();
+                        };
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY - 15, 10, 0, Math.PI * 2);
+                        ctx.clip();
+                        ctx.drawImage(img, screenX - 10, screenY - 25, 20, 20);
+                    } else {
+                        ctx.fillStyle = user.profile?.avatarColor || "#FFA";
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY - 15, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.strokeStyle = "#000";
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(screenX, screenY + 20);
+                    ctx.moveTo(screenX - 10, screenY + 10);
+                    ctx.lineTo(screenX + 10, screenY + 10);
+                    ctx.moveTo(screenX, screenY + 20);
+                    ctx.lineTo(screenX - 10, screenY + 30);
+                    ctx.moveTo(screenX, screenY + 20);
+                    ctx.lineTo(screenX + 10, screenY + 30);
+                    ctx.strokeStyle = "#FFF";
+                    ctx.stroke();
+
+                    if (user.pet) {
+                        ctx.font = "12px 'Press Start 2P'";
+                        ctx.fillText("🧚", screenX + 20, screenY);
+                    }
+
+                    const name = `${user.profile?.name || pubkey.slice(0, 8)}${user.guild ? ` [${user.guild}]` : ''}`;
+                    ctx.fillStyle = "white";
+                    ctx.font = "10px 'Press Start 2P'";
+                    ctx.textAlign = "center";
+                    ctx.fillText(name, screenX, screenY - 30);
+                    ctx.fillStyle = "yellow";
+                    if (user.score) ctx.fillText("Score: " + user.score, screenX, screenY + 45);
+                    ctx.restore();
+                });
+
+                let px = game.canvas.width / 2;
+                let py = game.canvas.height / 2 + game.player.bobOffset;
+                ctx.save();
+                if (game.player.profile?.picture) {
+                    const img = new Image();
+                    img.src = game.player.profile.picture;
+                    img.onerror = () => {
+                        ctx.fillStyle = game.player.profile?.avatarColor || "#F00";
+                        ctx.beginPath();
+                        ctx.arc(px, py - 15, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                    };
+                    ctx.beginPath();
+                    ctx.arc(px, py - 15, 10, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.drawImage(img, px - 10, py - 25, 20, 20);
+                } else {
+                    ctx.fillStyle = game.player.profile?.avatarColor || "#F00";
+                    ctx.beginPath();
+                    ctx.arc(px, py - 15, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.strokeStyle = "#000";
+                ctx.stroke();
+
+                ctx.fillStyle = "#00FF00";
+                ctx.fillRect(px - 10, py - 5, 20, 20);
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(px, py + 20);
+                ctx.moveTo(px - 10, py + 10);
+                ctx.lineTo(px + 10, py + 10);
+                ctx.moveTo(px, py + 20);
+                ctx.lineTo(px - 10, py + 30);
+                ctx.moveTo(px, py + 20);
+                ctx.lineTo(px + 10, py + 30);
+                ctx.strokeStyle = "#FFF";
+                ctx.stroke();
+
+                if (game.player.pet) {
+                    ctx.font = "12px 'Press Start 2P'";
+                    ctx.fillText("🧚", px + 20, py);
+                }
+
+                let name = `${game.player.profile?.name || game.player.pubkey?.slice(0, 8) || "You"}${game.player.guild ? ` [${game.player.guild}]` : ''}`;
+                ctx.fillStyle = "#FFF";
+                ctx.font = "10px 'Press Start 2P'";
+                ctx.textAlign = "center";
+                ctx.fillText(name, px, py - 30);
+                ctx.fillStyle = "yellow";
+                ctx.fillText("Score: " + game.player.score, px, py + 45);
+                ctx.restore();
+
+                game.miniMap.draw();
+            }
+        };
+
+        const loginButton = document.getElementById('login-button');
+        const loginLoader = document.getElementById('login-loader');
+        const loginStatus = document.getElementById('login-status');
+        const soundWave = document.getElementById('sound-wave');
+        loginButton.addEventListener('click', async () => {
+            loginButton.disabled = true;
+            loginLoader.style.display = 'block';
+            loginStatus.textContent = 'Looking for Nostr extension...';
+            try {
+                let available = await nostr.isAvailable();
+                if (!available) throw new Error('Nostr extension not found');
+                loginStatus.textContent = 'Extension found! Requesting pubkey...';
+                let pubkey = await nostr.getPublicKey();
+                if (!pubkey) throw new Error('No pubkey returned');
+
+                ui.playSound("item");
+                soundWave.style.animation = 'sound-wave 1s forwards';
+                setTimeout(() => { soundWave.style.animation = 'none'; }, 1000);
+
+                loginStatus.textContent = 'Got pubkey, connecting to relay...';
+                game.player.pubkey = pubkey;
+
+                const hash = CryptoJS.SHA256(pubkey).toString();
+                const x = parseInt(hash.substr(0, 8), 16) % WORLD_SIZE;
+                const y = parseInt(hash.substr(8, 8), 16) % WORLD_SIZE;
+                game.player.x = x;
+                game.player.y = y;
+                game.users.set(pubkey, {
+                    pubkey,
+                    profile: null,
+                    x, y,
+                    notes: [],
+                    score: 0,
+                    itemsCollected: 0,
+                    questsCompleted: 0,
+                    guild: null,
+                    pet: null,
+                    inventory: [],
+                    bobOffset: 0
+                });
+
+                await nostr.connectRelay(game.activeRelay);
+
+                const progress = await nostr.requestPlayerProgress(pubkey);
+                game.player.score = progress.score;
+                game.player.level = progress.level;
+                game.users.get(pubkey).score = progress.score;
+
+                ui.playSound("success");
+                loginStatus.textContent = 'Success! Entering the realm...';
+                document.getElementById('login-screen').style.opacity = "0";
+                setTimeout(() => {
+                    document.getElementById('login-screen').classList.add('hide');
+                    document.getElementById('top-bar').classList.remove('hide');
+                    document.getElementById('chat-container').classList.remove('hide');
+                    document.getElementById('player-profile').classList.remove('hide');
+                    document.getElementById('leaderboard-container').classList.remove('hide');
+                    document.getElementById('mobile-controls').classList.remove('hide');
+
+                    ui.updateRelaySelector();
+                    ui.updateKindsSelector();
+
+                    nostr.requestProfile(pubkey);
+                    nostr.requestContacts(pubkey);
+                    nostr.requestAllUsersAndContent();
+
+                    ui.updatePlayerProfile();
+                    game.dailyBonus.check();
+                    game.quests.startQuest();
+
+                    if (!game.running) gameLoop.start();
+
+                    loginButton.disabled = false;
+                    loginLoader.style.display = 'none';
+                }, 1000);
+            } catch (e) {
+                ui.playSound("error");
+                soundWave.style.animation = 'sound-wave 1s forwards';
+                setTimeout(() => { soundWave.style.animation = 'none'; }, 1000);
+                console.error('Login error:', e);
+                loginStatus.textContent = 'Login failed: ' + e.message;
+                loginLoader.style.display = 'none';
+                loginButton.disabled = false;
+            }
+        });
+
+        function spawnCollectibles(count = 30) {
+            let nextId = Date.now();
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * WORLD_SIZE;
+                const y = Math.random() * WORLD_SIZE;
+                const r = Math.random();
+                let item;
+                if (r < 0.001) item = game.items.find(i => i.rarity === "1/1");
+                else if (r < 0.01) item = game.items.find(i => i.rarity === "10/10");
+                else if (r < 0.1) item = game.items.find(i => i.rarity === "100/100");
+                else item = game.items.find(i => i.rarity === "1000/1000");
+                game.world.collectibles.push({ ...item, id: nextId++, x, y });
+            }
+        }
+        spawnCollectibles(40);
+
+        ui.init();
+    })();
+    </script>
+</body>
+</html>
