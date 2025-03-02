@@ -75,6 +75,12 @@ async function initGame() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
+    // Verify game master keys are set
+    if (!CONFIG.GAME_MASTER_PUBKEY || !CONFIG.GAME_MASTER_NSEC) {
+        showToast("Game master keys not configured. Set GAME_MASTER_PUBKEY and GAME_MASTER_NSEC in Vercel.", "error");
+        return;
+    }
+
     setupInputHandlers();
 
     document.getElementById('login-button').addEventListener('click', async () => {
@@ -86,7 +92,7 @@ async function initGame() {
             for (const url of CONFIG.DEFAULT_RELAYS) {
                 game.surfingRelays.set(url, await nostrClient.connectRelay(url));
             }
-                        game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
+            game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
             await initWebLN();
             spawnNPCsFromSurfingRelay();
             subscribeToGameEvents();
@@ -95,7 +101,7 @@ async function initGame() {
             syncMarketplace();
             syncChestState();
             updateNostrAnalytics();
-            spawnChests(); // Initial chest spawn
+            spawnChests();
             game.itemSpawnInterval = setInterval(spawnRandomItem, 30 * 1000);
             setInterval(triggerWorldEvent, 60 * 1000);
             setInterval(scheduleNextQuest, CONFIG.QUEST_INTERVAL);
