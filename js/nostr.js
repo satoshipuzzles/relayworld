@@ -24,19 +24,23 @@ const nostrClient = {
             return relay;
         } catch (error) {
             console.error(`Failed to connect to relay ${url}:`, error);
-            throw error;
+            return null;
         }
     },
 
     async publishEvent(relay, event) {
         try {
+            if (!relay) {
+                console.error('No relay provided');
+                return null;
+            }
             const signedEvent = await this.signEvent(event);
             await relay.publish(signedEvent);
             console.log(`Published event: ${event.kind}`);
             return signedEvent;
         } catch (error) {
             console.error('Event publication failed:', error);
-            throw error;
+            return null;
         }
     },
 
@@ -54,13 +58,51 @@ const nostrClient = {
 
     subscribeToEvents(relay, filters, onEvent, onEOSE) {
         try {
+            if (!relay) {
+                console.error('No relay provided for subscription');
+                return null;
+            }
             const sub = relay.sub(filters);
-            sub.on('event', onEvent);
-            if (onEOSE) sub.on('eose', onEOSE);
+            if (sub) {
+                sub.on('event', onEvent);
+                if (onEOSE) sub.on('eose', onEOSE);
+            } else {
+                console.error('Failed to create subscription');
+            }
             return sub;
         } catch (error) {
             console.error('Event subscription failed:', error);
             return null;
+        }
+    },
+
+    createChatEvent(message) {
+        return {
+            kind: window.CONFIG.EVENT_KINDS.GLOBAL_CHAT,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [],
+            content: message
+        };
+    },
+
+    createDirectMessageEvent(recipientPubkey, message) {
+        return {
+            kind: window.CONFIG.EVENT_KINDS.DIRECT_CHAT,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [['p', recipientPubkey]],
+            content: message
+        };
+    },
+
+    async decryptMessage(senderPubkey, encryptedMessage) {
+        try {
+            if (!window.nostr || !window.nostr.nip04) {
+                throw new Error('NIP-04 decryption not supported');
+            }
+            return await window.nostr.nip04.decrypt(senderPubkey, encryptedMessage);
+        } catch (error) {
+            console.error('Message decryption failed:', error);
+            return encryptedMessage; // Fallback to returning encrypted message
         }
     }
 };
