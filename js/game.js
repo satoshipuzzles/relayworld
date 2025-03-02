@@ -69,7 +69,55 @@ function setupLoginHandler() {
         }
     });
 }
+// Diagnostic Initialization Tracker
+console.group('🕹️ NostrWorld Initialization Diagnostic');
+console.time('Initialization Time');
 
+// Log all critical global objects and their status
+const diagnosticCheck = {
+    windowNostr: !!window.nostr,
+    gameObject: !!window.game,
+    nostrObject: !!window.nostr,
+    gameRunning: window.game?.running ?? false,
+    playerPubkey: window.game?.player?.pubkey ?? 'Not Set',
+    relayConnections: window.game?.relayConnections?.size ?? 0,
+    logFullGameState: () => {
+        console.log('🔍 Full Game State:', window.game);
+    }
+};
+
+console.table(diagnosticCheck);
+diagnosticCheck.logFullGameState();
+
+// Check module loading
+const moduleLoadStatus = {
+    nostrJS: typeof nostr !== 'undefined',
+    utilsJS: typeof utils !== 'undefined',
+    playerJS: typeof player !== 'undefined',
+    worldJS: typeof world !== 'undefined',
+    socialJS: typeof social !== 'undefined',
+    economyJS: typeof economy !== 'undefined',
+    questsJS: typeof quests !== 'undefined',
+    uiJS: typeof ui !== 'undefined',
+    gameJS: typeof gameLoop !== 'undefined',
+    sdkJS: typeof sdk !== 'undefined'
+};
+
+console.table(moduleLoadStatus);
+
+console.timeEnd('Initialization Time');
+console.groupEnd();
+
+// Add error catching
+window.addEventListener('error', (event) => {
+    console.error('🚨 Unhandled Error:', {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        error: event.error
+    });
+});
 function initializeGameState() {
     console.log('Initializing game state for player:', window.game.player.pubkey);
     
