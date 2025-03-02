@@ -1,126 +1,44 @@
-function setupLoginHandler() {
-    const loginButton = document.getElementById('login-button');
-    const loginScreen = document.getElementById('login-screen');
-    const gameContainer = document.getElementById('game-container');
-    const loginLoader = document.getElementById('login-loader');
-    const loginStatus = document.getElementById('login-status');
-
-    if (!loginButton) {
-        console.error('Login button not found');
+function syncGuilds() {
+    // Only attempt to subscribe if game relay exists
+    if (!window.game.gameRelay) {
+        console.error('Game relay not initialized for guild sync');
         return;
     }
 
-    loginButton.addEventListener('click', async () => {
-        try {
-            // Show loader
-            loginLoader.style.display = 'block';
-            loginStatus.textContent = '';
-
-            // Verify Nostr extension
-            if (typeof window.nostr === 'undefined') {
-                loginStatus.textContent = "Nostr extension (NIP-07) not found. Please install a compatible browser extension.";
-                loginLoader.style.display = 'none';
-                return;
-            }
-
-            // Get public key
-            const pubkey = await window.nostr.getPublicKey();
-            
-            if (!pubkey) {
-                loginStatus.textContent = "Failed to get Nostr public key. Please approve the request.";
-                loginLoader.style.display = 'none';
-                return;
-            }
-
-            // Set game player pubkey
-            window.game.player.pubkey = pubkey;
-
-            // Connect to relay
-            try {
-                window.game.gameRelay = await nostrClient.connectRelay(CONFIG.GAME_RELAY);
-                
-                // Add default relays
-                for (const url of CONFIG.DEFAULT_RELAYS) {
-                    window.game.surfingRelays.set(url, await nostrClient.connectRelay(url));
+    try {
+        nostrClient.subscribeToEvents(
+            window.game.gameRelay,
+            [{ kinds: [CONFIG.EVENT_KINDS.GUILD_CREATION, CONFIG.EVENT_KINDS.GUILD_JOIN, CONFIG.EVENT_KINDS.GUILD_RANK_UPDATE] }],
+            (event) => {
+                if (event.kind === CONFIG.EVENT_KINDS.GUILD_CREATION) {
+                    const guild = JSON.parse(event.content);
+                    window.game.guilds.set(event.tags.find(t => t[0] === "guild")[1], guild);
+                } else if (event.kind === CONFIG.EVENT_KINDS.GUILD_JOIN) {
+                    const data = JSON.parse(event.content);
+                    const guildId = event.tags.find(t => t[0] === "guild")[1];
+                    const guild = window.game.guilds.get(guildId);
+                    if (guild) {
+                        guild.members.add(data.pubkey);
+                        guild.ranks.set(data.pubkey, "member");
+                    }
+                } else if (event.kind === CONFIG.EVENT_KINDS.GUILD_RANK_UPDATE) {
+                    const guildId = event.tags.find(t => t[0] === "guild")[1];
+                    const pubkey = event.tags.find(t => t[0] === "p")[1];
+                    const data = JSON.parse(event.content);
+                    const guild = window.game.guilds.get(guildId);
+                    if (guild) guild.ranks.set(pubkey, data.rank);
                 }
-                
-                window.game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
+            },
+            () => console.log('Guild sync subscription completed')
+        );
 
-                // Switch screens
-                loginScreen.style.display = 'none';
-                gameContainer.style.display = 'block';
-
-                // Game initialization
-                initializeGameState();
-
-            } catch (relayError) {
-                loginStatus.textContent = `Relay connection failed: ${relayError.message}`;
-                loginLoader.style.display = 'none';
-            }
-        } catch (error) {
-            console.error('Login process failed:', error);
-            loginStatus.textContent = `Login failed: ${error.message}`;
-            loginLoader.style.display = 'none';
-        }
-    });
-}
-
-function initializeGameState() {
-    const canvas = document.getElementById('game-canvas');
-    if (!canvas) {
-        console.error('Game canvas not found');
-        return;
-    }
-
-    window.game.canvas = canvas;
-    window.game.ctx = canvas.getContext('2d');
-    
-    // Set up canvas
-    window.game.canvas.width = window.innerWidth;
-    window.game.canvas.height = window.innerHeight;
-
-    // Initialize game systems
-    setupInputHandlers();
-    spawnNPCsFromSurfingRelay();
-    subscribeToGameEvents();
-    loadPlayerStats();
-    
-    // Start game loop
-    window.game.running = true;
-    requestAnimationFrame(gameLoop);
-}
-
-function gameLoop(timestamp) {
-    if (!window.game.running) return;
-    
-    const deltaTime = (timestamp - window.game.lastFrameTime) / 1000;
-    window.game.lastFrameTime = timestamp;
-    
-    updateGameState(deltaTime);
-    renderGame();
-    
-    requestAnimationFrame(gameLoop);
-}
-
-function updateGameState(deltaTime) {
-    updatePlayerMovement(deltaTime);
-    updateCamera();
-    checkItemCollection();
-    checkSocialSpaces();
-    publishPlayerPosition();
-}
-
-function renderGame() {
-    const ctx = window.game.ctx;
-    ctx.clearRect(0, 0, window.game.canvas.width, window.game.canvas.height);
-    
-    drawGrid();
-    drawWorldBounds();
-    drawItems();
-    drawSocialSpaces();
-    drawPlayers();
-    drawPlayer();
-}
-
-// Initialize login handler when page loads
-document.addEventListener('DOMContentLoaded', setupLoginHandler);
+        // Guild invite subscription
+        nostrClient.subscribeToEvents(
+            window.game.gameRelay,
+            [{ kinds: [CONFIG.EVENT_KINDS.GUILD_INVITE], "#p": [window.game.player.pubkey] }],
+            (event) => {
+                const data = JSON.parse(event.content);
+                if (confirm(`Join guild "${data.guildName}"?`)) {
+                    const guildId = event.tags.find(t => t[0] === "guild")[1];
+                    window.game.player.guildId = guildId;
+                    const guild = window.game.guilds.get(guildId);
