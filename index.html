@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Relay World</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Environment Configuration -->
+    <script>
+        // Provide fallback environment variables 
+        window.GAME_MASTER_PUBKEY = '';
+        window.GAME_MASTER_NSEC = '';
+    </script>
 </head>
 <body>
     <!-- Login Screen -->
@@ -230,7 +238,11 @@
     </div>
 
     <script src="https://unpkg.com/nostr-tools@1.7.5/lib/nostr.bundle.js"></script>
+    
+    <!-- Load config first -->
     <script src="js/config.js"></script>
+    
+    <!-- Other scripts in dependency order -->
     <script src="js/nostr.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/player.js"></script>
