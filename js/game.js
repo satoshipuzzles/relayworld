@@ -1,4 +1,92 @@
-            game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
+const game = {
+    running: false,
+    canvas: null,
+    ctx: null,
+    lastFrameTime: 0,
+    keys: { up: false, down: false, left: false, right: false },
+    player: {
+        pubkey: null,
+        profile: null,
+        x: CONFIG.WORLD_SIZE / 2,
+        y: CONFIG.WORLD_SIZE / 2,
+        score: 0,
+        level: 1,
+        inventory: [],
+        following: new Set(),
+        dx: 0,
+        dy: 0,
+        guildId: null,
+        reputation: 0,
+        stats: {
+            itemsCollected: 0,
+            questsCompleted: 0,
+            zapsSent: 0,
+            zapsReceived: 0,
+            tradesCompleted: 0,
+            distanceTraveled: 0,
+            lastX: CONFIG.WORLD_SIZE / 2,
+            lastY: CONFIG.WORLD_SIZE / 2
+        },
+        isVisible: true,
+        lastPublish: 0,
+        lastUpdate: 0
+    },
+    camera: { x: 0, y: 0, width: 0, height: 0 },
+    players: new Map(),
+    items: new Map(),
+    gameRelay: null,
+    surfingRelays: new Map(),
+    activeRelay: null,
+    currentQuest: null,
+    currentEvent: null,
+    leaderboard: [],
+    historicalLeaderboard: new Map(),
+    globalChat: [],
+    directChats: new Map(),
+    tradeOffers: new Map(),
+    guilds: new Map(),
+    guildAlliances: new Map(),
+    marketplace: new Map(),
+    selectedPlayer: null,
+    inventoryOpen: false,
+    webln: null,
+    weather: { type: null, opacity: 0, color: 'transparent', spawnRate: 1, visibilityRange: Infinity },
+    analytics: { activeAuthors: new Set(), notes: [], mostActive: { pubkey: null, count: 0 } },
+    scavengerHuntActive: false,
+    audio: {
+        rain: new Audio('audio/rain.mp3'),
+        alarm: new Audio('audio/alarm.mp3'),
+        collect: new Audio('audio/collect.mp3'),
+        trade: new Audio('audio/trade.mp3'),
+        quest: new Audio('audio/quest.mp3')
+    }
+};
+
+const debug = {
+    log: (message) => console.log(`[GAME] ${message}`),
+    error: (message) => console.error(`[GAME ERROR] ${message}`),
+    warn: (message) => console.warn(`[GAME WARNING] ${message}`),
+    success: (message) => console.log(`[GAME SUCCESS] ${message}`)
+};
+
+async function initGame() {
+    game.canvas = document.getElementById('game-canvas');
+    game.ctx = game.canvas.getContext('2d');
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    setupInputHandlers();
+
+    document.getElementById('login-button').addEventListener('click', async () => {
+        document.getElementById('login-loader').style.display = 'block';
+        if (await nostrClient.isExtensionAvailable()) {
+            game.player.pubkey = await nostrClient.getPublicKey();
+            document.getElementById('login-screen').style.display = 'none';
+            game.gameRelay = await nostrClient.connectRelay(CONFIG.GAME_RELAY);
+            for (const url of CONFIG.DEFAULT_RELAYS) {
+                game.surfingRelays.set(url, await nostrClient.connectRelay(url));
+            }
+                        game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
             await initWebLN();
             spawnNPCsFromSurfingRelay();
             subscribeToGameEvents();
