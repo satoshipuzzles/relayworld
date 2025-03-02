@@ -1,4 +1,5 @@
-const game = {
+// Global game state management
+let game = {
     running: false,
     canvas: null,
     ctx: null,
@@ -7,8 +8,8 @@ const game = {
     player: {
         pubkey: null,
         profile: null,
-        x: (window.CONFIG?.WORLD_SIZE || 1000) / 2,
-        y: (window.CONFIG?.WORLD_SIZE || 1000) / 2,
+        x: 500,  // Half of WORLD_SIZE
+        y: 500,
         score: 0,
         level: 1,
         inventory: [],
@@ -24,8 +25,8 @@ const game = {
             zapsReceived: 0,
             tradesCompleted: 0,
             distanceTraveled: 0,
-            lastX: (window.CONFIG?.WORLD_SIZE || 1000) / 2,
-            lastY: (window.CONFIG?.WORLD_SIZE || 1000) / 2
+            lastX: 500,
+            lastY: 500
         },
         isVisible: true,
         lastPublish: 0,
@@ -36,127 +37,80 @@ const game = {
     items: new Map(),
     gameRelay: null,
     surfingRelays: new Map(),
-    activeRelay: null,
-    currentQuest: null,
-    currentEvent: null,
-    leaderboard: [],
-    historicalLeaderboard: new Map(),
-    globalChat: [],
-    directChats: new Map(),
-    tradeOffers: new Map(),
-    guilds: new Map(),
-    guildAlliances: new Map(),
-    marketplace: new Map(),
-    selectedPlayer: null,
-    inventoryOpen: false,
-    webln: null,
-    weather: { type: null, opacity: 0, color: 'transparent', spawnRate: 1, visibilityRange: Infinity },
-    analytics: { activeAuthors: new Set(), notes: [], mostActive: { pubkey: null, count: 0 } },
-    scavengerHuntActive: false,
-    audio: {
-        rain: new Audio('audio/rain.mp3'),
-        alarm: new Audio('audio/alarm.mp3'),
-        collect: new Audio('audio/collect.mp3'),
-        trade: new Audio('audio/trade.mp3'),
-        quest: new Audio('audio/quest.mp3')
-    }
+    activeRelay: null
 };
 
-// Ensure CONFIG is defined with fallback
-const CONFIG = window.CONFIG || {
-    WORLD_SIZE: 1000,
-    PLAYER_SPEED: 200,
-    CAMERA_FOLLOW_SPEED: 0.1,
-    GAME_RELAY: "wss://relay.nostrfreaks.com",
-    DEFAULT_RELAYS: [
-        "wss://relay.damus.io",
-        "wss://nostr-pub.wellorder.net",
-        "wss://relay.snort.social"
-    ],
-    EVENT_KINDS: {},
-    QUEST_INTERVAL: 5 * 60 * 1000,
-    LEADERBOARD_UPDATE_INTERVAL: 30 * 1000
-};
-
-const debug = {
-    log: (message) => console.log(`[GAME] ${message}`),
-    error: (message) => console.error(`[GAME ERROR] ${message}`),
-    warn: (message) => console.warn(`[GAME WARNING] ${message}`),
-    success: (message) => console.log(`[GAME SUCCESS] ${message}`)
-};
-
-async function initGame() {
-    game.canvas = document.getElementById('game-canvas');
-    
-    // Validate critical game elements
-    if (!game.canvas) {
-        debug.error('Game canvas not found');
-        return;
-    }
-
-    game.ctx = game.canvas.getContext('2d');
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    // Verify game master keys are set
-    if (!CONFIG.GAME_MASTER_PUBKEY || !CONFIG.GAME_MASTER_NSEC) {
-        showToast("Game master keys not configured. Set GAME_MASTER_PUBKEY and GAME_MASTER_NSEC in Vercel.", "error");
-        return;
-    }
-
-    setupInputHandlers();
-
-    // Login button event listener
+function setupLoginHandler() {
     const loginButton = document.getElementById('login-button');
-    if (loginButton) {
-        loginButton.addEventListener('click', async () => {
-            document.getElementById('login-loader').style.display = 'block';
+    const loginScreen = document.getElementById('login-screen');
+    const gameContainer = document.getElementById('game-container');
+    const loginLoader = document.getElementById('login-loader');
+    const loginStatus = document.getElementById('login-status');
+
+    if (!loginButton) {
+        console.error('Login button not found');
+        return;
+    }
+
+    loginButton.addEventListener('click', async () => {
+        try {
+            // Show loader
+            loginLoader.style.display = 'block';
+            loginStatus.textContent = '';
+
+            // Check for Nostr extension
+            if (typeof window.nostr === 'undefined') {
+                loginStatus.textContent = "Nostr extension not found!";
+                loginLoader.style.display = 'none';
+                return;
+            }
+
+            // Get public key
+            const pubkey = await window.nostr.getPublicKey();
             
-            if (await nostrClient.isExtensionAvailable()) {
-                game.player.pubkey = await nostrClient.getPublicKey();
-                document.getElementById('login-screen').style.display = 'none';
-                
+            if (!pubkey) {
+                loginStatus.textContent = "Failed to get Nostr public key";
+                loginLoader.style.display = 'none';
+                return;
+            }
+
+            // Set game player pubkey
+            game.player.pubkey = pubkey;
+
+            // Connect to relay
+            try {
                 game.gameRelay = await nostrClient.connectRelay(CONFIG.GAME_RELAY);
                 
-                for (const url of CONFIG.DEFAULT_RELAYS) {
-                    game.surfingRelays.set(url, await nostrClient.connectRelay(url));
-                }
-                
-                game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
-                
-                await initWebLN();
-                spawnNPCsFromSurfingRelay();
-                subscribeToGameEvents();
-                loadPlayerStats();
-                syncGuilds();
-                syncMarketplace();
-                syncChestState();
-                updateNostrAnalytics();
-                spawnChests();
-                
-                game.itemSpawnInterval = setInterval(spawnRandomItem, 30 * 1000);
-                setInterval(triggerWorldEvent, 60 * 1000);
-                setInterval(scheduleNextQuest, CONFIG.QUEST_INTERVAL);
-                setInterval(updateLeaderboard, CONFIG.LEADERBOARD_UPDATE_INTERVAL);
-                
-                game.running = true;
-                requestAnimationFrame(gameLoop);
-                updateRelayList();
-                
-                showToast("Welcome to Relay World!", "success");
-            } else {
-                document.getElementById('login-status').textContent = "Nostr extension not found!";
-                document.getElementById('login-loader').style.display = 'none';
+                // Switch screens
+                loginScreen.style.display = 'none';
+                gameContainer.style.display = 'block';
+
+                // Optional: further game initialization
+                initializeGameState();
+            } catch (relayError) {
+                loginStatus.textContent = `Relay connection failed: ${relayError.message}`;
+                loginLoader.style.display = 'none';
             }
-        });
-    }
+        } catch (error) {
+            console.error('Login process failed:', error);
+            loginStatus.textContent = `Login failed: ${error.message}`;
+            loginLoader.style.display = 'none';
+        }
+    });
 }
 
-function resizeCanvas() {
-    game.canvas.width = window.innerWidth;
-    game.canvas.height = window.innerHeight;
-    game.camera.width = window.innerWidth;
-    game.camera.height = window.innerHeight;
+function initializeGameState() {
+    // Initialize game state, spawn players, etc.
+    console.log('Initializing game state for player:', game.player.pubkey);
+    
+    // Example initialization steps
+    spawnNPCsFromSurfingRelay();
+    subscribeToGameEvents();
+    loadPlayerStats();
+    
+    // Start game loop
+    game.running = true;
+    requestAnimationFrame(gameLoop);
 }
 
 function gameLoop(timestamp) {
@@ -165,71 +119,44 @@ function gameLoop(timestamp) {
     const deltaTime = (timestamp - game.lastFrameTime) / 1000;
     game.lastFrameTime = timestamp;
     
-    update(deltaTime);
-    render();
+    updateGameState(deltaTime);
+    renderGame();
     
     requestAnimationFrame(gameLoop);
 }
 
-function update(deltaTime) {
+function updateGameState(deltaTime) {
+    // Update player movement, positions, etc.
     updatePlayerMovement(deltaTime);
     updateCamera();
-    checkItemCollection();
-    checkSocialSpaces();
-    checkRelayTagTeam();
-    checkScavengerHunt();
-    updateWorldEvents(deltaTime);
-    updateWeather(deltaTime);
-    publishPlayerPosition();
-
-    const now = Date.now();
-    game.players.forEach((player, pubkey) => {
-        if (player.isActive && now - player.lastUpdate > 2 * 60 * 1000) {
-            player.x = player.spawnX;
-            player.y = player.spawnY;
-            player.isActive = false;
-            debug.log(`${pubkey.slice(0, 8)} disconnected, reverted to spawn`);
-        }
-    });
-
-    updateMinimap();
 }
 
-function render() {
-    game.ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+function renderGame() {
+    const ctx = game.ctx;
+    ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+    
+    // Render game elements
     drawGrid();
-    drawWorldBounds();
-    drawItems();
-    drawSocialSpaces();
-    drawChests();
-    drawTagTargets();
     drawPlayers();
-    drawPlayer();
-    drawWeather();
 }
 
-function subscribeToGameEvents() {
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.PLAYER_POSITION] }], handlePlayerPosition);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.GLOBAL_CHAT] }], handleGlobalChat);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.DIRECT_CHAT], "#p": [game.player.pubkey] }], handleDirectMessage);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.TRADE_ACTION], "#p": [game.player.pubkey] }], handleTradeAction);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.GAME_QUEST], authors: [CONFIG.GAME_MASTER_PUBKEY] }], handleQuestEvent);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.GAME_SCORE] }], handleScoreUpdate);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [9735], "#p": [game.player.pubkey] }], handleZapReceipt);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.WORLD_EVENT], authors: [CONFIG.GAME_MASTER_PUBKEY] }], handleWorldEvent);
-    nostrClient.subscribeToEvents(game.gameRelay, [{ kinds: [CONFIG.EVENT_KINDS.GUILD_CHAT] }], (event) => {
-        const guildId = event.tags.find(t => t[0] === "guild")?.[1];
-        if (guildId === game.player.guildId) {
-            game.globalChat.push({
-                id: event.id,
-                pubkey: event.pubkey,
-                content: `[Guild] ${event.content}`,
-                created_at: event.created_at
-            });
-            updateChatUI();
-        }
-    });
+// Call this when the page loads
+function initGame() {
+    const canvas = document.getElementById('game-canvas');
+    if (canvas) {
+        game.canvas = canvas;
+        game.ctx = canvas.getContext('2d');
+        
+        // Set up canvas
+        game.canvas.width = window.innerWidth;
+        game.canvas.height = window.innerHeight;
+        
+        // Set up login handler
+        setupLoginHandler();
+    } else {
+        console.error('Game canvas not found');
+    }
 }
 
-// Initialize the game when the script loads
-initGame();
+// Initialize when script loads
+document.addEventListener('DOMContentLoaded', initGame);
