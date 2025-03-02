@@ -1,3 +1,4 @@
+// Configuration for Relay World Game
 const CONFIG = {
     WORLD_SIZE: 1000,
     PLAYER_SPEED: 200,
@@ -8,9 +9,10 @@ const CONFIG = {
         "wss://nostr-pub.wellorder.net",
         "wss://relay.snort.social"
     ],
-    // Vercel environment variables - must be set in Vercel dashboard
-    GAME_MASTER_PUBKEY: process.env.GAME_MASTER_PUBKEY,
-    GAME_MASTER_NSEC: process.env.GAME_MASTER_NSEC,
+    // Fallback for game master keys
+    GAME_MASTER_PUBKEY: window.GAME_MASTER_PUBKEY || '',
+    GAME_MASTER_NSEC: window.GAME_MASTER_NSEC || '',
+    
     EVENT_KINDS: {
         PLAYER_POSITION: 420001,
         GLOBAL_CHAT: 420002,
@@ -98,3 +100,8 @@ const CONFIG = {
     QUEST_INTERVAL: 5 * 60 * 1000,
     LEADERBOARD_UPDATE_INTERVAL: 30 * 1000
 };
+
+// Fallback for configuration if not defined
+if (typeof window !== 'undefined') {
+    window.CONFIG = CONFIG;
+}
