@@ -8,7 +8,10 @@ const nostrClient = {
     },
 
     async signEvent(event) {
-        if (event.pubkey === CONFIG.GAME_MASTER_PUBKEY && CONFIG.GAME_MASTER_NSEC) {
+        if (event.pubkey === CONFIG.GAME_MASTER_PUBKEY) {
+            if (!CONFIG.GAME_MASTER_NSEC) {
+                throw new Error("Game master NSEC not configured. Set GAME_MASTER_NSEC in Vercel environment variables.");
+            }
             return window.NostrTools.finalizeEvent(event, CONFIG.GAME_MASTER_NSEC);
         }
         return await window.nostr.signEvent(event);
