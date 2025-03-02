@@ -263,3 +263,74 @@ nostrClient.subscribeToEvents(
         }
     }
 );
+function publishSocialQuestUpdate() {
+    if (window.game && window.game.currentQuest?.type === "social_swarm") {
+        nostrClient.publishEvent(window.game.gameRelay, {
+            kind: 420014,
+            tags: [["p", window.game.player.pubkey]],
+            content: JSON.stringify({ 
+                questId: window.game.currentQuest.title, 
+                progress: window.game.currentQuest.progress 
+            })
+        });
+        
+        if (window.game.currentQuest.progress.follow >= window.game.currentQuest.target.follow) {
+            completeQuest();
+        }
+    }
+}
+
+function followPlayer() {
+    if (!window.game.selectedPlayer) return;
+    
+    const pubkey = window.game.selectedPlayer.pubkey;
+    if (window.game.player.following.has(pubkey)) {
+        window.game.player.following.delete(pubkey);
+        showToast(`Unfollowed ${getPlayerName(pubkey)}`, "info");
+        document.getElementById('popup-follow').textContent = 'Follow';
+    } else {
+        window.game.player.following.add(pubkey);
+        showToast(`Followed ${getPlayerName(pubkey)}`, "success");
+        document.getElementById('popup-follow').textContent = 'Unfollow';
+        
+        if (window.game.currentQuest?.type === "social_swarm") {
+            window.game.currentQuest.progress.follow += 1;
+            publishSocialQuestUpdate();
+        }
+    }
+    
+    updateReputation();
+    
+    const contactsEvent = {
+        kind: 3,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: Array.from(window.game.player.following).map(pk => ['p', pk]),
+        content: ''
+    };
+    
+    nostrClient.publishEvent(window.game.gameRelay, contactsEvent);
+}
+
+function proposeAlliance() {
+    if (!window.game.selectedPlayer || !window.game.player.guildId || window.game.selectedPlayer.guildId === window.game.player.guildId) return;
+    
+    const guild = window.game.guilds.get(window.game.player.guildId);
+    const targetGuild = window.game.guilds.get(window.game.selectedPlayer.guildId);
+    
+    if (guild.leader !== window.game.player.pubkey || targetGuild.leader !== window.game.selectedPlayer.pubkey) {
+        showToast("Only leaders can propose alliances!", "warning");
+        return;
+    }
+    
+    const allianceId = `${window.game.player.guildId}-${window.game.selectedPlayer.guildId}-${Date.now()}`;
+    
+    nostrClient.publishEvent(window.game.gameRelay, {
+        kind: CONFIG.EVENT_KINDS.ALLIANCE_PROPOSAL,
+        tags: [["guild", window.game.player.guildId], ["p", window.game.selectedPlayer.pubkey], ["alliance", allianceId]],
+        content: JSON.stringify({ proposer: guild.name, target: targetGuild.name })
+    });
+    
+    showToast(`Alliance proposed to ${targetGuild.name}!`, "success");
+}
+
+// Other existing social functions remain unchanged
