@@ -6,11 +6,11 @@ const CONFIG = {
     DEFAULT_RELAYS: [
         "wss://relay.damus.io",
         "wss://nostr-pub.wellorder.net",
-      "wss://bevo.nostr1.com",
         "wss://relay.snort.social"
     ],
-    GAME_MASTER_PUBKEY: process.env.GAME_MASTER_PUBKEY || "your_game_master_npub_here",
-    GAME_MASTER_NSEC: process.env.GAME_MASTER_NSEC || "your_game_master_nsec_here",
+    // Vercel environment variables - must be set in Vercel dashboard
+    GAME_MASTER_PUBKEY: process.env.GAME_MASTER_PUBKEY,
+    GAME_MASTER_NSEC: process.env.GAME_MASTER_NSEC,
     EVENT_KINDS: {
         PLAYER_POSITION: 420001,
         GLOBAL_CHAT: 420002,
