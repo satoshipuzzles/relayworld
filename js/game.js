@@ -1,45 +1,3 @@
-// Global game state management
-let game = {
-    running: false,
-    canvas: null,
-    ctx: null,
-    lastFrameTime: 0,
-    keys: { up: false, down: false, left: false, right: false },
-    player: {
-        pubkey: null,
-        profile: null,
-        x: 500,  // Half of WORLD_SIZE
-        y: 500,
-        score: 0,
-        level: 1,
-        inventory: [],
-        following: new Set(),
-        dx: 0,
-        dy: 0,
-        guildId: null,
-        reputation: 0,
-        stats: {
-            itemsCollected: 0,
-            questsCompleted: 0,
-            zapsSent: 0,
-            zapsReceived: 0,
-            tradesCompleted: 0,
-            distanceTraveled: 0,
-            lastX: 500,
-            lastY: 500
-        },
-        isVisible: true,
-        lastPublish: 0,
-        lastUpdate: 0
-    },
-    camera: { x: 0, y: 0, width: 0, height: 0 },
-    players: new Map(),
-    items: new Map(),
-    gameRelay: null,
-    surfingRelays: new Map(),
-    activeRelay: null
-};
-
 function setupLoginHandler() {
     const loginButton = document.getElementById('login-button');
     const loginScreen = document.getElementById('login-screen');
@@ -58,9 +16,9 @@ function setupLoginHandler() {
             loginLoader.style.display = 'block';
             loginStatus.textContent = '';
 
-            // Check for Nostr extension
+            // Verify Nostr extension
             if (typeof window.nostr === 'undefined') {
-                loginStatus.textContent = "Nostr extension not found!";
+                loginStatus.textContent = "Nostr extension (NIP-07) not found. Please install a compatible browser extension.";
                 loginLoader.style.display = 'none';
                 return;
             }
@@ -69,24 +27,32 @@ function setupLoginHandler() {
             const pubkey = await window.nostr.getPublicKey();
             
             if (!pubkey) {
-                loginStatus.textContent = "Failed to get Nostr public key";
+                loginStatus.textContent = "Failed to get Nostr public key. Please approve the request.";
                 loginLoader.style.display = 'none';
                 return;
             }
 
             // Set game player pubkey
-            game.player.pubkey = pubkey;
+            window.game.player.pubkey = pubkey;
 
             // Connect to relay
             try {
-                game.gameRelay = await nostrClient.connectRelay(CONFIG.GAME_RELAY);
+                window.game.gameRelay = await nostrClient.connectRelay(CONFIG.GAME_RELAY);
                 
+                // Add default relays
+                for (const url of CONFIG.DEFAULT_RELAYS) {
+                    window.game.surfingRelays.set(url, await nostrClient.connectRelay(url));
+                }
+                
+                window.game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
+
                 // Switch screens
                 loginScreen.style.display = 'none';
                 gameContainer.style.display = 'block';
 
-                // Optional: further game initialization
+                // Game initialization
                 initializeGameState();
+
             } catch (relayError) {
                 loginStatus.textContent = `Relay connection failed: ${relayError.message}`;
                 loginLoader.style.display = 'none';
@@ -100,24 +66,35 @@ function setupLoginHandler() {
 }
 
 function initializeGameState() {
-    // Initialize game state, spawn players, etc.
-    console.log('Initializing game state for player:', game.player.pubkey);
+    const canvas = document.getElementById('game-canvas');
+    if (!canvas) {
+        console.error('Game canvas not found');
+        return;
+    }
+
+    window.game.canvas = canvas;
+    window.game.ctx = canvas.getContext('2d');
     
-    // Example initialization steps
+    // Set up canvas
+    window.game.canvas.width = window.innerWidth;
+    window.game.canvas.height = window.innerHeight;
+
+    // Initialize game systems
+    setupInputHandlers();
     spawnNPCsFromSurfingRelay();
     subscribeToGameEvents();
     loadPlayerStats();
     
     // Start game loop
-    game.running = true;
+    window.game.running = true;
     requestAnimationFrame(gameLoop);
 }
 
 function gameLoop(timestamp) {
-    if (!game.running) return;
+    if (!window.game.running) return;
     
-    const deltaTime = (timestamp - game.lastFrameTime) / 1000;
-    game.lastFrameTime = timestamp;
+    const deltaTime = (timestamp - window.game.lastFrameTime) / 1000;
+    window.game.lastFrameTime = timestamp;
     
     updateGameState(deltaTime);
     renderGame();
@@ -126,37 +103,24 @@ function gameLoop(timestamp) {
 }
 
 function updateGameState(deltaTime) {
-    // Update player movement, positions, etc.
     updatePlayerMovement(deltaTime);
     updateCamera();
+    checkItemCollection();
+    checkSocialSpaces();
+    publishPlayerPosition();
 }
 
 function renderGame() {
-    const ctx = game.ctx;
-    ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+    const ctx = window.game.ctx;
+    ctx.clearRect(0, 0, window.game.canvas.width, window.game.canvas.height);
     
-    // Render game elements
     drawGrid();
+    drawWorldBounds();
+    drawItems();
+    drawSocialSpaces();
     drawPlayers();
+    drawPlayer();
 }
 
-// Call this when the page loads
-function initGame() {
-    const canvas = document.getElementById('game-canvas');
-    if (canvas) {
-        game.canvas = canvas;
-        game.ctx = canvas.getContext('2d');
-        
-        // Set up canvas
-        game.canvas.width = window.innerWidth;
-        game.canvas.height = window.innerHeight;
-        
-        // Set up login handler
-        setupLoginHandler();
-    } else {
-        console.error('Game canvas not found');
-    }
-}
-
-// Initialize when script loads
-document.addEventListener('DOMContentLoaded', initGame);
+// Initialize login handler when page loads
+document.addEventListener('DOMContentLoaded', setupLoginHandler);
