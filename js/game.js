@@ -16,7 +16,7 @@ function setupLoginHandler() {
             loginLoader.style.display = 'block';
             loginStatus.textContent = '';
 
-            // Verify Nostr extension
+            // Check for Nostr extension
             if (typeof window.nostr === 'undefined') {
                 loginStatus.textContent = "Nostr extension (NIP-07) not found. Please install a compatible browser extension.";
                 loginLoader.style.display = 'none';
@@ -35,16 +35,21 @@ function setupLoginHandler() {
             // Set game player pubkey
             window.game.player.pubkey = pubkey;
 
-            // Connect to relay
+            // Connect to relays
             try {
-                window.game.gameRelay = await nostrClient.connectRelay(CONFIG.GAME_RELAY);
+                // Connect to game relay
+                window.game.gameRelay = await nostrClient.connectRelay(window.CONFIG.GAME_RELAY);
                 
-                // Add default relays
-                for (const url of CONFIG.DEFAULT_RELAYS) {
-                    window.game.surfingRelays.set(url, await nostrClient.connectRelay(url));
+                // Connect to default relays
+                window.game.surfingRelays = new Map();
+                for (const url of window.CONFIG.DEFAULT_RELAYS) {
+                    const relay = await nostrClient.connectRelay(url);
+                    if (relay) {
+                        window.game.surfingRelays.set(url, relay);
+                    }
                 }
                 
-                window.game.activeRelay = CONFIG.DEFAULT_RELAYS[0];
+                window.game.activeRelay = window.CONFIG.DEFAULT_RELAYS[0];
 
                 // Switch screens
                 loginScreen.style.display = 'none';
@@ -66,28 +71,78 @@ function setupLoginHandler() {
 }
 
 function initializeGameState() {
-    const canvas = document.getElementById('game-canvas');
-    if (!canvas) {
-        console.error('Game canvas not found');
-        return;
-    }
-
-    window.game.canvas = canvas;
-    window.game.ctx = canvas.getContext('2d');
+    console.log('Initializing game state for player:', window.game.player.pubkey);
     
     // Set up canvas
-    window.game.canvas.width = window.innerWidth;
-    window.game.canvas.height = window.innerHeight;
+    const canvas = document.getElementById('game-canvas');
+    if (canvas) {
+        window.game.canvas = canvas;
+        window.game.ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
 
     // Initialize game systems
     setupInputHandlers();
+    setupCanvasEventListeners();
+    
+    // Initial game state setup
     spawnNPCsFromSurfingRelay();
     subscribeToGameEvents();
     loadPlayerStats();
+    syncGuilds();
     
     // Start game loop
     window.game.running = true;
     requestAnimationFrame(gameLoop);
+}
+
+function setupCanvasEventListeners() {
+    const canvas = window.game.canvas;
+    if (!canvas) return;
+
+    // Basic input handling for movement
+    document.addEventListener('keydown', (e) => {
+        switch(e.key) {
+            case 'ArrowUp':
+            case 'w':
+                window.game.keys.up = true;
+                break;
+            case 'ArrowDown':
+            case 's':
+                window.game.keys.down = true;
+                break;
+            case 'ArrowLeft':
+            case 'a':
+                window.game.keys.left = true;
+                break;
+            case 'ArrowRight':
+            case 'd':
+                window.game.keys.right = true;
+                break;
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        switch(e.key) {
+            case 'ArrowUp':
+            case 'w':
+                window.game.keys.up = false;
+                break;
+            case 'ArrowDown':
+            case 's':
+                window.game.keys.down = false;
+                break;
+            case 'ArrowLeft':
+            case 'a':
+                window.game.keys.left = false;
+                break;
+            case 'ArrowRight':
+            case 'd':
+                window.game.keys.right = false;
+                break;
+        }
+    });
 }
 
 function gameLoop(timestamp) {
@@ -112,8 +167,11 @@ function updateGameState(deltaTime) {
 
 function renderGame() {
     const ctx = window.game.ctx;
+    if (!ctx) return;
+
     ctx.clearRect(0, 0, window.game.canvas.width, window.game.canvas.height);
     
+    // Render game elements
     drawGrid();
     drawWorldBounds();
     drawItems();
@@ -122,5 +180,10 @@ function renderGame() {
     drawPlayer();
 }
 
-// Initialize login handler when page loads
+function setupInputHandlers() {
+    // Placeholder for any additional input setup
+    console.log('Input handlers set up');
+}
+
+// Initialize login handler when script loads
 document.addEventListener('DOMContentLoaded', setupLoginHandler);
