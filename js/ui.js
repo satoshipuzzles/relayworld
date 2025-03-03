@@ -14,8 +14,8 @@ const UI = {
     init: function() {
         console.log("[UI] Initializing UI...");
         
-        // Initialize audio
-        this.initAudio();
+        // Initialize sound system
+        this.loadSoundsSimple();
         
         // Initialize event listeners
         this.setupEventListeners();
@@ -23,7 +23,44 @@ const UI = {
         console.log("[UI] UI initialized");
     },
     
-    // Initialize audio system
+    // Simple sound loading implementation (replaces initAudio)
+    loadSoundsSimple: function() {
+        console.log("[UI] Initializing simple audio system...");
+        
+        // Define sounds to load with simpler implementation
+        const soundsToLoad = {
+            'item': 'assets/sounds/item.mp3',
+            'chat': 'assets/sounds/chat.mp3',
+            'success': 'assets/sounds/success.mp3',
+            'error': 'assets/sounds/error.mp3',
+            'portal': 'assets/sounds/portal.mp3',
+            'treasure': 'assets/sounds/treasure.mp3',
+            'zap': 'assets/sounds/zap.mp3',
+            'levelup': 'assets/sounds/levelup.mp3',
+            'death': 'assets/sounds/death.mp3',
+            'login': 'assets/sounds/login.mp3'
+        };
+        
+        // Use HTML5 Audio elements instead
+        this.sounds = {};
+        
+        for (const [name, url] of Object.entries(soundsToLoad)) {
+            // Create audio element
+            const audio = new Audio();
+            audio.src = url;
+            audio.preload = 'auto';
+            
+            // Store in sounds object
+            this.sounds[name] = audio;
+            
+            // Log success
+            console.log(`[UI] Sound '${name}' loaded successfully`);
+        }
+        
+        console.log('[UI] Simple sound system initialized');
+    },
+    
+    // Initialize audio system (original method - replaced by loadSoundsSimple)
     initAudio: function() {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -55,7 +92,7 @@ const UI = {
         }
     },
     
-    // Load a sound file
+    // Load a sound file (used by original initAudio method)
     loadSound: function(name, url) {
         fetch(url)
             .then(response => response.arrayBuffer())
@@ -75,6 +112,25 @@ const UI = {
     
     // Play a sound
     playSound: function(name) {
+        if (!this.sounds[name]) {
+            console.warn(`[UI] Sound "${name}" not found`);
+            return;
+        }
+        
+        try {
+            // Simple audio element approach
+            const soundClone = this.sounds[name].cloneNode();
+            soundClone.volume = 0.5; // 50% volume
+            soundClone.play().catch(e => {
+                console.warn(`[UI] Failed to play sound: ${e.message}`);
+            });
+        } catch (error) {
+            console.error(`[UI] Failed to play sound "${name}":`, error);
+        }
+    },
+    
+    // Original playSound method (for Web Audio API approach)
+    playSound_original: function(name) {
         if (!this.sounds[name]) {
             console.warn(`[UI] Sound "${name}" not found`);
             return;
@@ -968,7 +1024,59 @@ const UI = {
                 }
             }, 5000 + Math.random() * 10000);
         }
-    }
+    },
     
-    // Additional UI methods as needed...
+    // Update user information in popup
+    updateUserPopup: function(pubkey) {
+        const user = Nostr.getUser(pubkey);
+        if (!user) return;
+        
+        const popup = document.getElementById('user-popup');
+        if (popup.classList.contains('hide') || popup.dataset.pubkey !== pubkey) return;
+        
+        // Update popup content
+        document.getElementById('user-popup-image').src = user.profile?.picture || 'assets/icons/default-avatar.png';
+        document.getElementById('user-popup-name').textContent = user.profile?.name || Utils.formatPubkey(pubkey, { short: true });
+        document.getElementById('user-popup-npub').textContent = Utils.formatPubkey(pubkey, { short: true, useNpub: true });
+        
+        // Update user stats
+        document.getElementById('user-level').textContent = user.level || '1';
+        document.getElementById('user-score').textContent = Utils.formatNumber(user.score || 0);
+        document.getElementById('user-guild').textContent = user.guild || 'None';
+        document.getElementById('user-faction').textContent = user.faction || 'None';
+        
+        // Update follow button
+        this.updateFollowButton(pubkey);
+        
+        // Update user notes
+        this.updateUserNotes(pubkey);
+    },
+    
+    // Add a direct message to the chat
+    addDirectMessage: function(username, message, isFromMe = false) {
+        const dmContainer = document.getElementById('direct-message-content');
+        if (!dmContainer) return;
+        
+        // Create message element
+        const messageElement = document.createElement('div');
+        messageElement.className = `dm-message ${isFromMe ? 'from-me' : 'from-them'}`;
+        
+        // Add message content
+        const contentElement = document.createElement('div');
+        contentElement.className = 'dm-content';
+        contentElement.textContent = message;
+        messageElement.appendChild(contentElement);
+        
+        // Add timestamp
+        const timestampElement = document.createElement('div');
+        timestampElement.className = 'dm-timestamp';
+        timestampElement.textContent = new Date().toLocaleTimeString();
+        messageElement.appendChild(timestampElement);
+        
+        // Add to container
+        dmContainer.appendChild(messageElement);
+        
+        // Scroll to bottom
+        dmContainer.scrollTop = dmContainer.scrollHeight;
+    }
 };
