@@ -399,8 +399,6 @@ const Nostr = {
         }
     },
     
-    // Handler implementations for different event kinds...
-    // Keep all the existing handlers from your code
     // Handle profile metadata event (kind 0)
     handleProfileEvent: function(event, user) {
         try {
@@ -1223,3 +1221,6 @@ const Nostr = {
         return nearby;
     }
 };
+
+// Export Nostr as the default export
+export default Nostr;
