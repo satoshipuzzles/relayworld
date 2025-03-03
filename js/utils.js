@@ -263,3 +263,6 @@ const Utils = {
         }
     }
 };
+
+// Export Utils as the default export
+export default Utils;
