@@ -32,7 +32,7 @@ const RelayWorld = {
     player: null,
     
     // Initialize the application
-    init: async function() {
+    init: function() {
         console.log("[Relay World] Initializing application...");
         
         try {
@@ -53,12 +53,19 @@ const RelayWorld = {
             document.getElementById('login-button').addEventListener('click', this.handleLogin.bind(this));
             document.getElementById('login-nwc').addEventListener('click', this.handleNWCLogin.bind(this));
             
+            // Initialize login screen - hide NWC option initially
+            const loginExtras = document.querySelector('.login-extras');
+            if (loginExtras) {
+                loginExtras.classList.add('hide');
+            }
+            
             // Check if user has previously logged in
             const savedPubkey = localStorage.getItem('relayworld_pubkey');
             const savedRelays = localStorage.getItem('relayworld_relays');
             
             if (savedPubkey && savedRelays) {
                 this.ui.showToast("Previous session found. Click login to reconnect.", "info");
+                this.ui.setLoginStatus("Previous session found. Click the button to reconnect.");
             }
             
             this.initialized = true;
@@ -70,10 +77,32 @@ const RelayWorld = {
         }
     },
     
+    /**
+     * Show NWC login option after successful Nostr login
+     */
+    showNWCOption: function() {
+        // Show the NWC connection option
+        const loginExtras = document.querySelector('.login-extras');
+        if (loginExtras) {
+            loginExtras.classList.remove('hide');
+        }
+        
+        // Enable the NWC button
+        const nwcButton = document.getElementById('login-nwc');
+        if (nwcButton) {
+            nwcButton.disabled = false;
+        }
+        
+        // Show a hint toast
+        UI.showToast("Login successful! You can now connect your Lightning wallet", "success");
+    },
+    
     // Handle regular Nostr login via NIP-07
     handleLogin: async function() {
         console.log("[Relay World] Attempting login via NIP-07...");
         this.ui.setLoginStatus("Looking for Nostr extension...");
+        
+        // Disable login button during the login process
         document.getElementById('login-button').disabled = true;
         document.getElementById('login-loader').style.display = 'block';
         
@@ -101,6 +130,9 @@ const RelayWorld = {
             // Connect to relays
             await this.connectToRelays();
             
+            // Show NWC option
+            this.showNWCOption();
+            
             // Start game
             await this.startGame();
             
@@ -112,6 +144,8 @@ const RelayWorld = {
             console.error("[Relay World] Login failed:", error);
             this.ui.showToast("Login failed: " + error.message, "error");
             this.ui.setLoginStatus("Login failed: " + error.message);
+            
+            // Re-enable login button if login fails
             document.getElementById('login-button').disabled = false;
             document.getElementById('login-loader').style.display = 'none';
         }
@@ -119,7 +153,13 @@ const RelayWorld = {
     
     // Handle login via NWC (Nostr Wallet Connect)
     handleNWCLogin: async function() {
-        console.log("[Relay World] Attempting login via NWC...");
+        // Check if user is not logged in yet (pubkey not set)
+        if (!Player.pubkey) {
+            this.ui.showToast("Please log in with Nostr first before connecting your wallet", "error");
+            return;
+        }
+        
+        console.log("[Relay World] Attempting NWC connection...");
         this.ui.setLoginStatus("Setting up NWC connection...");
         document.getElementById('login-nwc').disabled = true;
         document.getElementById('login-loader').style.display = 'block';
@@ -132,9 +172,9 @@ const RelayWorld = {
             // The zaps.js module will set up event listeners for these components
             
         } catch (error) {
-            console.error("[Relay World] NWC login failed:", error);
-            this.ui.showToast("NWC login failed: " + error.message, "error");
-            this.ui.setLoginStatus("NWC login failed: " + error.message);
+            console.error("[Relay World] NWC connection failed:", error);
+            this.ui.showToast("NWC connection failed: " + error.message, "error");
+            this.ui.setLoginStatus("NWC connection failed: " + error.message);
             document.getElementById('login-nwc').disabled = false;
             document.getElementById('login-loader').style.display = 'none';
         }
@@ -170,14 +210,14 @@ const RelayWorld = {
             // Load player profile
             await Nostr.loadPlayerProfile();
             
-            // Initialize game systems
+            // Initialize game systems in the correct order
             Game.init();
             
-            // Initialize zaps system if NWC is available
-            Zaps.init();
-            
-            // Initialize voice chat
+            // Initialize audio system first (needed for voice chat)
             Audio.init();
+            
+            // Now initialize zaps system (depends on Player.pubkey being set)
+            Zaps.initAfterLogin();
             
             // Request user data from relays
             Nostr.subscribeToProfiles();
