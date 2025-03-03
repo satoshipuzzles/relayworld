@@ -21,7 +21,7 @@ const Player = {
         right: false
     },
     
-    // CHANGE: Add these new properties for chat focus tracking
+    // Properties for chat focus tracking
     chatFocused: false,   // Flag to track if chat input is focused
     _inputState: {},      // Store input state when chat is focused
     
@@ -85,7 +85,7 @@ const Player = {
         console.log("[Player] Profile set");
     },
     
-    // CHANGE: Add this new method to check if input should be processed
+    // Check if input should be processed
     isInputAllowed: function() {
         // Don't process movement input when chat or other inputs are focused
         if (this.chatFocused || 
@@ -390,7 +390,7 @@ const Player = {
     
     // Get total inventory value
     getInventoryValue: function() {
-        return this.inventory.reduce((total, item) => total + item.value, 0);
+        return this.inventory.reduce((total, item) => total + (item.value || 0), 0);
     },
     
     // Get total equipped value
@@ -399,12 +399,12 @@ const Player = {
         
         for (const slot in this.equipment) {
             if (this.equipment[slot]) {
-                total += this.equipment[slot].value;
+                total += this.equipment[slot].value || 0;
             }
         }
         
         if (this.pet) {
-            total += this.pet.value;
+            total += this.pet.value || 0;
         }
         
         return total;
@@ -448,18 +448,20 @@ const Player = {
     handleDeath: function() {
         console.log("[Player] Player died");
         
-        // Reset position to center of world
-        this.x = Game.world.width / 2;
-        this.y = Game.world.height / 2;
+        // Reset position to center of world (assuming Game module exists)
+        if (typeof Game !== 'undefined' && Game.world) {
+            this.x = Game.world.width / 2;
+            this.y = Game.world.height / 2;
+        }
         
         // Restore some health
         this.health = Math.floor(this.maxHealth * 0.5);
         
         // Show death notification
-        UI.showToast("You have been defeated! Returning to spawn point.", "error");
-        
-        // Play death sound
-        UI.playSound("death");
+        if (typeof UI !== 'undefined') {
+            UI.showToast("You have been defeated! Returning to spawn point.", "error");
+            if (UI.playSound) UI.playSound("death");
+        }
     },
     
     // Use energy
@@ -477,3 +479,6 @@ const Player = {
         this.energy = Math.min(this.maxEnergy, this.energy + amount);
     }
 };
+
+// Export Player as the default export
+export default Player;
