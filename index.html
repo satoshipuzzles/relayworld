@@ -13,7 +13,7 @@
 </head>
 <body>
     <div id="game-container">
-        <canvas id="game-canvas"></canvas>
+        <canvas id="game-canvas" width="800" height="600"></canvas>
         <div id="weather-overlay" class="weather-effect"></div>
     </div>
 
@@ -299,15 +299,7 @@
             import('./js/debug.js'),
             import('./js/main.js')
         ]).then(([
-            Utils,Player, 
-            Items, 
-            Nostr, 
-            Zaps, 
-            Audio, 
-            UI, 
-            Game, 
-            Debug, 
-            RelayWorld
+            Utils, Player, Items, Nostr, Zaps, Audio, UI, Game, Debug, RelayWorld
         ]) => {
             // Make modules globally available
             window.Utils = Utils.default;
@@ -321,10 +313,11 @@
             window.Debug = Debug.default;
             window.RelayWorld = RelayWorld.default;
 
-            // Initialize when DOM is ready
-            RelayWorld.default.init();
+            // Initialize the game
+            window.RelayWorld.init();
         }).catch(error => {
             console.error('Failed to load modules:', error);
+            document.getElementById('login-status').textContent = 'Error loading game: ' + error.message;
         });
     </script>
 </body>
