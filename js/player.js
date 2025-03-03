@@ -142,36 +142,6 @@ const Player = {
         return attack;
     },
     
-        
-        // Add buffs
-        for (const buff of this.buffs) {
-            if (buff.stat === "speed") {
-                speed += buff.value;
-            }
-        }
-        
-        return speed;
-    },
-    
-    // Get attack power
-    getAttack: function() {
-        let attack = 10; // Base attack
-        
-        // Add equipment bonuses
-        for (const slot in this.equipment) {
-            if (this.equipment[slot] && this.equipment[slot].stats && this.equipment[slot].stats.attack) {
-                attack += this.equipment[slot].stats.attack;
-            }
-        }
-        
-        // Add pet bonuses
-        if (this.pet && this.pet.stats && this.pet.stats.attack) {
-            attack += this.pet.stats.attack;
-        }
-        
-        return attack;
-    },
-    
     // Get defense power
     getDefense: function() {
         let defense = 5; // Base defense
