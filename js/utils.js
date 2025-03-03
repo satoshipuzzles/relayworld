@@ -12,6 +12,7 @@ const Utils = {
         this.setupPolyfills();
         
         console.log("[Utils] Utilities initialized");
+        return true;
     },
     
     // Setup any required polyfills
@@ -261,3 +262,4 @@ const Utils = {
             return 'assets/icons/default-avatar.png';
         }
     }
+};
