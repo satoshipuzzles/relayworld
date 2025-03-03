@@ -8,6 +8,7 @@ const Zaps = {
     webln: null, // WebLN connection if available
     nwcConnection: null, // NWC connection details
     isConnected: false,
+    initialized: false,
     
     // Recent zaps
     recentZaps: [], // Array of recent zaps sent/received
@@ -18,16 +19,60 @@ const Zaps = {
     init: function() {
         console.log("[Zaps] Initializing zaps system...");
         
-        // Set up Bitcoin Connect event listeners
-        this.setupBitcoinConnect();
-        
-        // Check for existing WebLN provider
-        this.checkWebLNProvider();
+        // Check if the user is logged in before initializing
+        if (!Player.pubkey) {
+            console.log("[Zaps] Deferring zaps initialization until user logs in");
+            return;
+        }
         
         // Setup UI event listeners
         this.setupEventListeners();
         
+        // Set up Bitcoin Connect event listeners
+        this.setupBitcoinConnect();
+        
+        // Check for existing WebLN provider
+        this.checkWebLNProvider()
+            .then(connected => {
+                if (connected) {
+                    console.log("[Zaps] WebLN provider automatically connected");
+                    UI.showToast("Lightning wallet connected", "success");
+                }
+            })
+            .catch(err => {
+                console.error("[Zaps] Error checking WebLN provider:", err);
+            });
+        
+        this.initialized = true;
         console.log("[Zaps] Zaps system initialized");
+    },
+    
+    // Initialize zaps system after login
+    initAfterLogin: function() {
+        if (this.initialized) return;
+        
+        console.log("[Zaps] Initializing zaps system after login...");
+        
+        // Setup UI event listeners
+        this.setupEventListeners();
+        
+        // Set up Bitcoin Connect event listeners
+        this.setupBitcoinConnect();
+        
+        // Check for existing WebLN provider
+        this.checkWebLNProvider()
+            .then(connected => {
+                if (connected) {
+                    console.log("[Zaps] WebLN provider automatically connected");
+                    UI.showToast("Lightning wallet connected", "success");
+                }
+            })
+            .catch(err => {
+                console.error("[Zaps] Error checking WebLN provider:", err);
+            });
+        
+        this.initialized = true;
+        console.log("[Zaps] Zaps system initialized after login");
     },
     
     // Set up Bitcoin Connect UI
@@ -35,6 +80,11 @@ const Zaps = {
         // Set up Bitcoin Connect modal
         const modal = document.getElementById('bitcoin-connect-modal');
         const closeBtn = document.getElementById('bc-modal-close');
+        
+        if (!modal || !closeBtn) {
+            console.error("[Zaps] Bitcoin Connect modal elements not found");
+            return;
+        }
         
         closeBtn.addEventListener('click', () => {
             modal.classList.add('hide');
@@ -78,26 +128,32 @@ const Zaps = {
         const zapSendButton = document.getElementById('zap-send-button');
         const zapPresets = document.querySelectorAll('.zap-preset');
         
-        zapClose.addEventListener('click', () => {
-            document.getElementById('zap-interface').classList.add('hide');
-        });
-        
-        zapSendButton.addEventListener('click', () => {
-            this.sendZap();
-        });
-        
-        zapPresets.forEach(preset => {
-            preset.addEventListener('click', () => {
-                const amount = preset.dataset.amount;
-                document.getElementById('zap-amount').value = amount;
-                
-                // Remove active class from all presets
-                zapPresets.forEach(p => p.classList.remove('active'));
-                
-                // Add active class to clicked preset
-                preset.classList.add('active');
+        if (zapClose) {
+            zapClose.addEventListener('click', () => {
+                document.getElementById('zap-interface').classList.add('hide');
             });
-        });
+        }
+        
+        if (zapSendButton) {
+            zapSendButton.addEventListener('click', () => {
+                this.sendZap();
+            });
+        }
+        
+        if (zapPresets) {
+            zapPresets.forEach(preset => {
+                preset.addEventListener('click', () => {
+                    const amount = preset.dataset.amount;
+                    document.getElementById('zap-amount').value = amount;
+                    
+                    // Remove active class from all presets
+                    zapPresets.forEach(p => p.classList.remove('active'));
+                    
+                    // Add active class to clicked preset
+                    preset.classList.add('active');
+                });
+            });
+        }
     },
     
     // Check for existing WebLN provider
@@ -110,8 +166,6 @@ const Zaps = {
                 this.isConnected = true;
                 
                 console.log("[Zaps] WebLN provider found and enabled");
-                UI.showToast("Lightning wallet connected", "success");
-                
                 return true;
             }
         } catch (error) {
@@ -303,13 +357,30 @@ const Zaps = {
         
         // Check if we have a lightning wallet connected
         if (!this.isConnected && !this.checkWebLNProvider()) {
+            UI.showToast("Please connect a lightning wallet first", "info");
+            
             // Show Bitcoin Connect modal
-            document.getElementById('bitcoin-connect-modal').classList.remove('hide');
+            if (document.getElementById('bitcoin-connect-modal')) {
+                document.getElementById('bitcoin-connect-modal').classList.remove('hide');
+                
+                // Update modal title to make it clearer
+                constmodalTitle = document.getElementById('bc-modal-title');
+                if (modalTitle) {
+                    modalTitle.textContent = "Connect Lightning Wallet to Send Zaps";
+                }
+            } else {
+                UI.showToast("Bitcoin Connect modal not found", "error");
+            }
             return;
         }
         
         // Update zap interface with user info
         const zapInterface = document.getElementById('zap-interface');
+        if (!zapInterface) {
+            UI.showToast("Zap interface not found", "error");
+            return;
+        }
+        
         const userImage = document.getElementById('zap-target-image');
         const userName = document.getElementById('zap-target-name');
         
