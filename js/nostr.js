@@ -16,18 +16,26 @@ const Nostr = {
     subscriptions: new Map(),
     
     // Check if a Nostr extension is available
-    isExtensionAvailable: async function(timeout = 3000) {
+    isExtensionAvailable: function(timeout = 3000) {
         return new Promise((resolve) => {
+            // Check if extension is already available
             if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
                 resolve(true);
                 return;
             }
             
-            const timer = setTimeout(() => resolve(false), timeout);
+            // Set timeout for extension check
+            const timer = setTimeout(() => {
+                console.log("[Nostr] No extension found within timeout period");
+                resolve(false);
+            }, timeout);
+            
+            // Poll for extension
             const interval = setInterval(() => {
                 if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
                     clearInterval(interval);
                     clearTimeout(timer);
+                    console.log("[Nostr] Extension found");
                     resolve(true);
                 }
             }, 100);
@@ -37,10 +45,33 @@ const Nostr = {
     // Get public key from extension
     getPublicKey: async function() {
         try {
-            return await window.nostr.getPublicKey();
+            // Make sure the extension is available
+            const isAvailable = await this.isExtensionAvailable(1000);
+            if (!isAvailable) {
+                throw new Error("Nostr extension not found or not ready");
+            }
+            
+            // Request public key with error handling
+            const pubkey = await window.nostr.getPublicKey();
+            
+            // Validate public key format (simple check)
+            if (!pubkey || typeof pubkey !== 'string' || pubkey.length !== 64) {
+                throw new Error("Invalid public key format");
+            }
+            
+            console.log(`[Nostr] Got public key: ${pubkey.substring(0, 8)}...`);
+            return pubkey;
         } catch (error) {
             console.error("[Nostr] Failed to get public key:", error);
-            throw error;
+            
+            // Provide more helpful error messages
+            if (error.message && error.message.includes("User rejected")) {
+                throw new Error("You rejected the public key request. Please approve it to continue.");
+            } else if (error.message && error.message.includes("timeout")) {
+                throw new Error("Request to your Nostr extension timed out. Please try again.");
+            } else {
+                throw error;
+            }
         }
     },
     
@@ -50,18 +81,29 @@ const Nostr = {
             // Check if already connected
             if (this.relayConnections.has(url) && 
                 this.relayConnections.get(url).readyState === WebSocket.OPEN) {
+                console.log(`[Nostr] Already connected to relay: ${url}`);
                 return this.relayConnections.get(url);
             }
             
             console.log(`[Nostr] Connecting to relay: ${url}`);
             
-            // Create new WebSocket connection
-            const relay = window.NostrTools ? 
-                window.NostrTools.relayInit(url) : 
-                { url, connect: () => this.createWebSocket(url) };
-            
-            // Connect to relay
-            await relay.connect();
+            // Create relay connection using NostrTools if available
+            let relay;
+            if (window.NostrTools && window.NostrTools.relayInit) {
+                relay = window.NostrTools.relayInit(url);
+                
+                // Set connection timeout
+                const connectionPromise = relay.connect();
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error(`Connection to ${url} timed out`)), 5000);
+                });
+                
+                await Promise.race([connectionPromise, timeoutPromise]);
+            } else {
+                // Fallback to custom WebSocket implementation
+                relay = { url, connect: () => this.createWebSocket(url) };
+                await relay.connect();
+            }
             
             // Add to relay list
             this.relays.add(url);
@@ -72,7 +114,15 @@ const Nostr = {
             
         } catch (error) {
             console.error(`[Nostr] Failed to connect to relay ${url}:`, error);
-            throw error;
+            
+            // Provide more helpful error messages
+            if (error.message && error.message.includes("timed out")) {
+                throw new Error(`Connection to ${url} timed out. The relay might be down.`);
+            } else if (error.message && error.message.includes("Invalid URL")) {
+                throw new Error(`${url} is not a valid WebSocket URL.`);
+            } else {
+                throw error;
+            }
         }
     },
     
@@ -118,6 +168,49 @@ const Nostr = {
                 this.handleRelayMessage(url, event.data);
             };
         });
+    },
+    
+    // Check connection status
+    checkConnectionStatus: function() {
+        // Count connected relays
+        let connectedCount = 0;
+        let totalRelays = this.relayConnections.size;
+        
+        for (const [url, relay] of this.relayConnections.entries()) {
+            if (relay.readyState === WebSocket.OPEN) {
+                connectedCount++;
+            } else {
+                console.log(`[Nostr] Relay ${url} is not connected. Status: ${relay.readyState}`);
+                
+                // Try to reconnect
+                this.reconnectRelay(url);
+            }
+        }
+        
+        return {
+            connectedCount,
+            totalRelays,
+            allConnected: connectedCount === totalRelays && totalRelays > 0
+        };
+    },
+    
+    // Reconnect to a relay
+    reconnectRelay: async function(url) {
+        try {
+            // Remove existing connection
+            this.closeRelay(url);
+            
+            // Wait a moment before reconnecting
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try to reconnect
+            await this.connectRelay(url);
+            console.log(`[Nostr] Successfully reconnected to ${url}`);
+            return true;
+        } catch (error) {
+            console.error(`[Nostr] Failed to reconnect to ${url}:`, error);
+            return false;
+        }
     },
     
     // Create a subscription object (fallback if NostrTools not available)
@@ -506,8 +599,7 @@ const Nostr = {
             if (data.questsCompleted !== undefined) {
                 user.questsCompleted = data.questsCompleted;
             }
-            
-            // Update UI if this is the current player
+            // Update player stats
             if (user.pubkey === Player.pubkey && data.score !== undefined) {
                 Player.score = data.score;
                 UI.updatePlayerProfile();
@@ -532,11 +624,31 @@ const Nostr = {
                 event.pubkey = Player.pubkey;
             }
             
-            // Sign using extension
-            return await window.nostr.signEvent(event);
+            // Check if extension is available
+            if (!window.nostr) {
+                throw new Error("Nostr extension not found");
+            }
+            
+            // Sign the event
+            const signedEvent = await window.nostr.signEvent(event);
+            
+            // Validate the signed event has an id and signature
+            if (!signedEvent.id || !signedEvent.sig) {
+                throw new Error("Event signing failed - missing id or signature");
+            }
+            
+            return signedEvent;
         } catch (error) {
             console.error(`[Nostr] Failed to sign event:`, error);
-            throw error;
+            
+            // Provide more helpful error messages
+            if (error.message && error.message.includes("User rejected")) {
+                throw new Error("You rejected the signing request. Please approve it to continue.");
+            } else if (error.message && error.message.includes("timeout")) {
+                throw new Error("Request to your Nostr extension timed out. Please try again.");
+            } else {
+                throw error;
+            }
         }
     },
     
