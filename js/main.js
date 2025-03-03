@@ -1,9 +1,9 @@
 /**
  * main.js - Entry point for Relay World
  * Handles initialization and coordinates between modules
+ * Fixed version that addresses connectivity issues
  */
 
-// Main application namespace
 const RelayWorld = {
     initialized: false,
     debug: true,
@@ -39,6 +39,9 @@ const RelayWorld = {
             // Create simple UI for showing toasts before UI module is loaded
             this.createTemporaryUI();
             
+            // Log system details
+            this.logSystemInfo();
+            
             // Initialize modules in dependency order
             if (typeof Utils !== 'undefined') {
                 Utils.init();
@@ -66,6 +69,11 @@ const RelayWorld = {
             
             if (typeof UI !== 'undefined') {
                 UI.init();
+                
+                // Use simple sound loading to fix audio issues
+                if (typeof UI.loadSoundsSimple === 'function') {
+                    UI.loadSoundsSimple();
+                }
             } else {
                 console.error("[Relay World] UI module not found");
                 this.showTempToast("Error loading UI module", "error");
@@ -105,6 +113,13 @@ const RelayWorld = {
                 this.setLoginStatus("Previous session found. Click the button to reconnect.");
             }
             
+            // Initialize debug system if available
+            if (typeof Debug !== 'undefined') {
+                Debug.init();
+                Debug.runDiagnostics();
+                Debug.addGlobalDebugMethods();
+            }
+            
             this.initialized = true;
             console.log("[Relay World] Initialization complete. Ready for login.");
             
@@ -112,6 +127,23 @@ const RelayWorld = {
             console.error("[Relay World] Initialization failed:", error);
             this.showTempToast("Failed to initialize game. Please refresh the page.", "error");
         }
+    },
+    
+    // Log system information
+    logSystemInfo: function() {
+        const userAgent = navigator.userAgent;
+        const platform = navigator.platform;
+        const isSecure = window.isSecureContext;
+        const hasCrypto = !!window.crypto;
+        const hasWebSocket = !!window.WebSocket;
+        const hasNostrExtension = !!window.nostr;
+        
+        console.log(`[Relay World] User Agent: ${userAgent}`);
+        console.log(`[Relay World] Platform: ${platform}`);
+        console.log(`[Relay World] Secure Context: ${isSecure}`);
+        console.log(`[Relay World] Has Crypto API: ${hasCrypto}`);
+        console.log(`[Relay World] Has WebSocket: ${hasWebSocket}`);
+        console.log(`[Relay World] Has Nostr Extension: ${hasNostrExtension}`);
     },
     
     // Create a temporary UI for showing toasts before UI module is loaded
@@ -228,8 +260,8 @@ const RelayWorld = {
             this.setLoginStatus("Got public key, connecting to relays...");
             
             // Play login sound if UI is available
-            if (this.ui) {
-                this.ui.playLoginSound();
+            if (this.ui && typeof this.ui.playSound === 'function') {
+                this.ui.playSound("login");
             }
             
             // Set player public key
@@ -254,7 +286,7 @@ const RelayWorld = {
             
         } catch (error) {
             console.error("[Relay World] Login failed:", error);
-            if (this.ui) {
+            if (this.ui && typeof this.ui.showToast === 'function') {
                 this.ui.showToast("Login failed: " + error.message, "error");
             } else {
                 this.showTempToast("Login failed: " + error.message, "error");
@@ -271,7 +303,7 @@ const RelayWorld = {
     handleNWCLogin: async function() {
         // Check if player module is initialized and pubkey is set
         if (!this.player || !this.player.pubkey) {
-            if (this.ui) {
+            if (this.ui && typeof this.ui.showToast === 'function') {
                 this.ui.showToast("Please log in with Nostr first before connecting your wallet", "error");
             } else {
                 this.showTempToast("Please log in with Nostr first before connecting your wallet", "error");
@@ -302,7 +334,7 @@ const RelayWorld = {
             
         } catch (error) {
             console.error("[Relay World] NWC connection failed:", error);
-            if (this.ui) {
+            if (this.ui && typeof this.ui.showToast === 'function') {
                 this.ui.showToast("NWC connection failed: " + error.message, "error");
             } else {
                 this.showTempToast("NWC connection failed: " + error.message, "error");
@@ -325,13 +357,24 @@ const RelayWorld = {
             
             // Connect to default relays
             for (const relayUrl of this.config.DEFAULT_RELAYS) {
-                await this.nostr.connectRelay(relayUrl);
+                try {
+                    await this.nostr.connectRelay(relayUrl);
+                } catch (error) {
+                    console.warn(`[Relay World] Failed to connect to relay ${relayUrl}: ${error.message}`);
+                    // Continue with other relays even if one fails
+                }
             }
             
-            // Set active relay
-            this.nostr.setActiveRelay(this.config.DEFAULT_RELAYS[0]);
+            // Check if at least one relay connected
+            if (this.nostr.relays.size === 0) {
+                throw new Error("Failed to connect to any relays. Please check your internet connection and try again.");
+            }
             
-            this.setLoginStatus("Connected to relays successfully!");
+            // Set active relay to the first connected one
+            const firstRelay = Array.from(this.nostr.relays)[0];
+            this.nostr.setActiveRelay(firstRelay);
+            
+            this.setLoginStatus(`Connected to ${this.nostr.relays.size} relays successfully!`);
             return true;
             
         } catch (error) {
@@ -388,7 +431,7 @@ const RelayWorld = {
             // Start game loop
             this.game.start();
             
-            if (this.ui) {
+            if (this.ui && typeof this.ui.showToast === 'function') {
                 this.ui.showToast("Welcome to Relay World!", "success");
             } else {
                 this.showTempToast("Welcome to Relay World!", "success");
