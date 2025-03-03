@@ -10,6 +10,18 @@
     <link rel="stylesheet" href="css/ui.css">
     <link rel="stylesheet" href="css/animations.css">
     <link rel="icon" type="image/png" href="assets/icons/favicon.png">
+    <style>
+        /* Additional style for login extras */
+        .login-extras {
+            margin-top: 15px;
+            transition: opacity 0.3s ease;
+        }
+
+        .login-extras.hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
 </head>
 <body>
     <div id="game-container">
@@ -34,11 +46,16 @@
                 <h1>Relay World</h1>
                 <p>IT IS DANGEROUS TO GO ALONE! TAKE THIS...</p>
                 <p>A legendary adventure awaits! Explore the Nostr network in a vibrant 8-bit world.</p>
+                
+                <!-- Updated login options with clearer separation -->
                 <div id="login-options">
                     <button id="login-button" class="primary-button">CONNECT WITH NOSTR</button>
-                    <div class="separator">OR</div>
-                    <button id="login-nwc" class="secondary-button">CONNECT WITH NWC</button>
+                    <div class="login-extras hide">
+                        <div class="separator">AFTER LOGGING IN</div>
+                        <button id="login-nwc" class="secondary-button">CONNECT LIGHTNING WALLET</button>
+                    </div>
                 </div>
+                
                 <div class="loader" id="login-loader"></div>
                 <div id="login-status"></div>
                 <div class="instructions">
@@ -252,7 +269,7 @@
         <div id="bitcoin-connect-modal" class="hide">
             <div id="bc-modal-content">
                 <div id="bc-modal-header">
-                    <h3>Connect Lightning Wallet</h3>
+                    <h3 id="bc-modal-title">Connect Lightning Wallet</h3>
                     <button id="bc-modal-close">×</button>
                 </div>
                 <div id="bc-connector-list">
