@@ -62,7 +62,7 @@ const RelayWorld = {
             this.nostr = window.Nostr || null;
             this.ui = window.UI || null;
             this.zaps = window.Zaps || null;
-            this.audio =/window.Audio || null;
+            this.audio = window.Audio || null; // Fixed typo here
             this.player = window.Player || null;
             
             // Setup event listeners for login buttons
