@@ -174,8 +174,12 @@ const Player = {
             this.energy = this.maxEnergy;
             
             // Show notification
-            UI.showToast(`Level up! You are now level ${this.level}`, "success");
-            UI.playSound("levelup");
+            if (typeof UI !== 'undefined') {
+                UI.showToast(`Level up! You are now level ${this.level}`, "success");
+                if (UI.playSound) {
+                    UI.playSound("levelup");
+                }
+            }
             
             // Create level up effect
             this.createLevelUpEffect();
@@ -192,18 +196,22 @@ const Player = {
     // Create level up visual effect
     createLevelUpEffect: function() {
         // Create level up element
+        const gameContainer = document.getElementById('game-container');
+        if (!gameContainer) return;
+        
         const effect = document.createElement('div');
         effect.className = 'level-up-effect';
         effect.textContent = 'LEVEL UP!';
         effect.style.position = 'absolute';
-        effect.style.left = `${Game.canvas.width / 2 - 100}px`;
-        effect.style.top = `${Game.canvas.height / 2 - 30}px`;
+        effect.style.left = '50%';
+        effect.style.top = '50%';
+        effect.style.transform = 'translate(-50%, -50%)';
         effect.style.width = '200px';
         effect.style.height = '60px';
         effect.style.display = 'flex';
         effect.style.justifyContent = 'center';
         effect.style.alignItems = 'center';
-        effect.style.color = 'var(--color-gold)';
+        effect.style.color = 'gold';
         effect.style.fontSize = '24px';
         effect.style.fontWeight = 'bold';
         effect.style.textShadow = '2px 2px 0 #000';
@@ -211,7 +219,7 @@ const Player = {
         effect.style.pointerEvents = 'none';
         effect.style.animation = 'levelUp 2s ease-out forwards';
         
-        document.getElementById('game-container').appendChild(effect);
+        gameContainer.appendChild(effect);
         
         // Remove after animation completes
         setTimeout(() => {
