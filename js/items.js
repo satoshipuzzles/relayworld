@@ -440,3 +440,6 @@ const Items = {
         return this.quests.find(quest => quest.id === questId);
     }
 };
+
+// Export Items as the default export
+export default Items;
