@@ -46,7 +46,7 @@ const UI = {
         
         for (const [name, url] of Object.entries(soundsToLoad)) {
             try {
-                // CHANGE: Using HTMLAudioElement constructor directly instead of Audio
+                // Using HTMLAudioElement constructor directly instead of Audio
                 const audio = document.createElement('audio');
                 audio.src = url;
                 audio.preload = 'auto';
@@ -171,7 +171,6 @@ const UI = {
         document.getElementById('inventory-button').addEventListener('click', this.toggleInventory.bind(this));
         document.getElementById('inventory-close').addEventListener('click', this.toggleInventory.bind(this));
         
-        // CHANGE: Updated chat input handling
         // Chat input
         const chatInput = document.getElementById('chat-input');
         if (chatInput) {
@@ -258,7 +257,6 @@ const UI = {
         document.getElementById('stash-button').addEventListener('click', () => this.showFeatureNotice('Stash'));
     },
     
-    // The rest of the UI object methods remain unchanged
     // Show login status
     setLoginStatus: function(message) {
         const statusElement = document.getElementById('login-status');
@@ -1115,3 +1113,6 @@ const UI = {
         dmContainer.scrollTop = dmContainer.scrollHeight;
     }
 };
+
+// Export UI as the default export
+export default UI;
