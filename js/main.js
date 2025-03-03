@@ -1,7 +1,7 @@
 /**
  * main.js - Entry point for Relay World
  * Handles initialization and coordinates between modules
- * Fixed version that addresses connectivity issues
+ * Fixed version addressing export issues and connectivity
  */
 
 const RelayWorld = {
@@ -43,49 +43,27 @@ const RelayWorld = {
             this.logSystemInfo();
             
             // Initialize modules in dependency order
-            if (typeof Utils !== 'undefined') {
-                Utils.init();
-            } else {
-                console.error("[Relay World] Utils module not found");
-                this.showTempToast("Error loading utilities module", "error");
-                return;
+            if (!window.Utils) throw new Error("Utils module not loaded");
+            if (!window.Player) throw new Error("Player module not loaded");
+            if (!window.Items) throw new Error("Items module not loaded");
+            if (!window.UI) throw new Error("UI module not loaded");
+
+            window.Utils.init();
+            window.Player.init();
+            window.Items.init();
+            window.UI.init();
+            
+            if (typeof window.UI.loadSoundsSimple === 'function') {
+                window.UI.loadSoundsSimple();
             }
             
-            if (typeof Player !== 'undefined') {
-                Player.init();
-            } else {
-                console.error("[Relay World] Player module not found");
-                this.showTempToast("Error loading player module", "error");
-                return;
-            }
-            
-            if (typeof Items !== 'undefined') {
-                Items.init();
-            } else {
-                console.error("[Relay World] Items module not found");
-                this.showTempToast("Error loading items module", "error");
-                return;
-            }
-            
-            if (typeof UI !== 'undefined') {
-                UI.init();
-                
-                // Use simple sound loading to fix audio issues
-                if (typeof UI.loadSoundsSimple === 'function') {
-                    UI.loadSoundsSimple();
-                }
-            } else {
-                console.error("[Relay World] UI module not found");
-                this.showTempToast("Error loading UI module", "error");
-                return;
-            }
-            
-            this.game = typeof Game !== 'undefined' ? Game : null;
-            this.nostr = typeof Nostr !== 'undefined' ? Nostr : null;
-            this.ui = typeof UI !== 'undefined' ? UI : null;
-            this.zaps = typeof Zaps !== 'undefined' ? Zaps : null;
-            this.audio = typeof Audio !== 'undefined' ? Audio : null;
-            this.player = typeof Player !== 'undefined' ? Player : null;
+            // Assign module references
+            this.game = window.Game || null;
+            this.nostr = window.Nostr || null;
+            this.ui = window.UI || null;
+            this.zaps = window.Zaps || null;
+            this.audio =/window.Audio || null;
+            this.player = window.Player || null;
             
             // Setup event listeners for login buttons
             const loginButton = document.getElementById('login-button');
@@ -114,10 +92,10 @@ const RelayWorld = {
             }
             
             // Initialize debug system if available
-            if (typeof Debug !== 'undefined') {
-                Debug.init();
-                Debug.runDiagnostics();
-                Debug.addGlobalDebugMethods();
+            if (window.Debug) {
+                window.Debug.init();
+                window.Debug.runDiagnostics();
+                window.Debug.addGlobalDebugMethods();
             }
             
             this.initialized = true;
@@ -148,7 +126,6 @@ const RelayWorld = {
     
     // Create a temporary UI for showing toasts before UI module is loaded
     createTemporaryUI: function() {
-        // Create toast container if needed
         let toastContainer = document.getElementById('toast-container');
         if (!toastContainer) {
             toastContainer = document.createElement('div');
@@ -171,8 +148,8 @@ const RelayWorld = {
         toast.className = 'toast ' + type;
         toast.textContent = message;
         toast.style.backgroundColor = type === 'error' ? '#EF4444' : 
-                                      type === 'success' ? '#10B981' : 
-                                      type === 'warning' ? '#F59E0B' : '#8B5CF6';
+                                     type === 'success' ? '#10B981' : 
+                                     type === 'warning' ? '#F59E0B' : '#8B5CF6';
         toast.style.color = '#FFFFFF';
         toast.style.padding = '10px 15px';
         toast.style.borderRadius = '4px';
@@ -186,10 +163,7 @@ const RelayWorld = {
         setTimeout(() => {
             toast.style.opacity = '0';
             toast.style.transition = 'opacity 0.5s';
-            
-            setTimeout(() => {
-                toast.remove();
-            }, 500);
+            setTimeout(() => toast.remove(), 500);
         }, 3000);
     },
     
@@ -201,23 +175,18 @@ const RelayWorld = {
         }
     },
     
-    /**
-     * Show NWC login option after successful Nostr login
-     */
+    // Show NWC login option after successful Nostr login
     showNWCOption: function() {
-        // Show the NWC connection option
         const loginExtras = document.querySelector('.login-extras');
         if (loginExtras) {
             loginExtras.classList.remove('hide');
         }
         
-        // Enable the NWC button
         const nwcButton = document.getElementById('login-nwc');
         if (nwcButton) {
             nwcButton.disabled = false;
         }
         
-        // Show a hint toast
         if (this.ui) {
             this.ui.showToast("Login successful! You can now connect your Lightning wallet", "success");
         } else {
@@ -230,7 +199,6 @@ const RelayWorld = {
         console.log("[Relay World] Attempting login via NIP-07...");
         this.setLoginStatus("Looking for Nostr extension...");
         
-        // Disable login button during the login process
         const loginButton = document.getElementById('login-button');
         const loginLoader = document.getElementById('login-loader');
         
@@ -238,12 +206,10 @@ const RelayWorld = {
         if (loginLoader) loginLoader.style.display = 'block';
         
         try {
-            // Make sure Nostr module is available
             if (!this.nostr) {
                 throw new Error("Nostr module not found or not initialized");
             }
             
-            // Check for Nostr extension
             const isExtensionAvailable = await this.nostr.isExtensionAvailable();
             if (!isExtensionAvailable) {
                 throw new Error("No Nostr extension found. Please install one first.");
@@ -251,7 +217,6 @@ const RelayWorld = {
             
             this.setLoginStatus("Extension found! Requesting public key...");
             
-            // Get public key from extension
             const pubkey = await this.nostr.getPublicKey();
             if (!pubkey) {
                 throw new Error("Could not get public key from extension.");
@@ -259,28 +224,20 @@ const RelayWorld = {
             
             this.setLoginStatus("Got public key, connecting to relays...");
             
-            // Play login sound if UI is available
             if (this.ui && typeof this.ui.playSound === 'function') {
                 this.ui.playSound("login");
             }
             
-            // Set player public key
             if (this.player) {
                 this.player.setPubkey(pubkey);
             } else {
                 throw new Error("Player module not initialized");
             }
             
-            // Connect to relays
             await this.connectToRelays();
-            
-            // Show NWC option
             this.showNWCOption();
-            
-            // Start game
             await this.startGame();
             
-            // Save login info for next time
             localStorage.setItem('relayworld_pubkey', pubkey);
             localStorage.setItem('relayworld_relays', JSON.stringify([...this.nostr.relays]));
             
@@ -293,7 +250,6 @@ const RelayWorld = {
             }
             this.setLoginStatus("Login failed: " + error.message);
             
-            // Re-enable login button if login fails
             if (loginButton) loginButton.disabled = false;
             if (loginLoader) loginLoader.style.display = 'none';
         }
@@ -301,7 +257,6 @@ const RelayWorld = {
     
     // Handle login via NWC (Nostr Wallet Connect)
     handleNWCLogin: async function() {
-        // Check if player module is initialized and pubkey is set
         if (!this.player || !this.player.pubkey) {
             if (this.ui && typeof this.ui.showToast === 'function') {
                 this.ui.showToast("Please log in with Nostr first before connecting your wallet", "error");
@@ -321,16 +276,12 @@ const RelayWorld = {
         if (loginLoader) loginLoader.style.display = 'block';
         
         try {
-            // Show Bitcoin Connect modal
             const bcModal = document.getElementById('bitcoin-connect-modal');
             if (bcModal) {
                 bcModal.classList.remove('hide');
             } else {
                 throw new Error("Bitcoin Connect modal not found");
             }
-            
-            // NWC connection is handled by the modal components
-            // The zaps.js module will set up event listeners for these components
             
         } catch (error) {
             console.error("[Relay World] NWC connection failed:", error);
@@ -355,22 +306,18 @@ const RelayWorld = {
                 throw new Error("Nostr module not initialized");
             }
             
-            // Connect to default relays
             for (const relayUrl of this.config.DEFAULT_RELAYS) {
                 try {
                     await this.nostr.connectRelay(relayUrl);
                 } catch (error) {
                     console.warn(`[Relay World] Failed to connect to relay ${relayUrl}: ${error.message}`);
-                    // Continue with other relays even if one fails
                 }
             }
             
-            // Check if at least one relay connected
             if (this.nostr.relays.size === 0) {
                 throw new Error("Failed to connect to any relays. Please check your internet connection and try again.");
             }
             
-            // Set active relay to the first connected one
             const firstRelay = Array.from(this.nostr.relays)[0];
             this.nostr.setActiveRelay(firstRelay);
             
@@ -392,43 +339,32 @@ const RelayWorld = {
                 throw new Error("Required modules not initialized");
             }
             
-            // Load player profile
             await this.nostr.loadPlayerProfile();
-            
-            // Initialize game systems in the correct order
             this.game.init();
             
-            // Initialize audio system first (needed for voice chat)
             if (this.audio) {
                 this.audio.init();
             }
             
-            // Now initialize zaps system (depends on Player.pubkey being set)
             if (this.zaps) {
                 this.zaps.initAfterLogin();
             }
             
-            // Request user data from relays
             this.nostr.subscribeToProfiles();
             this.nostr.subscribeToEvents();
-            
-            // Generate initial world items
             this.game.generateWorldItems();
             
-            // Update UI
             if (this.ui) {
                 this.ui.updatePlayerProfile();
                 this.ui.updateRelaySelector();
                 this.ui.hideLoginScreen();
             } else {
-                // Simple hide login screen if UI module not available
                 const loginScreen = document.getElementById('login-screen');
                 if (loginScreen) {
                     loginScreen.style.display = 'none';
                 }
             }
             
-            // Start game loop
             this.game.start();
             
             if (this.ui && typeof this.ui.showToast === 'function') {
@@ -465,11 +401,6 @@ const RelayWorld = {
     }
 };
 
-// Initialize the application when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    RelayWorld.init();
-});
-
 // Handle window beforeunload to clean up resources
 window.addEventListener('beforeunload', () => {
     if (RelayWorld.audio) {
@@ -477,7 +408,9 @@ window.addEventListener('beforeunload', () => {
     }
     
     if (RelayWorld.nostr) {
-        // Close relay connections gracefully
         RelayWorld.nostr.closeAllRelays();
     }
 });
+
+// Export RelayWorld as the default export
+export default RelayWorld;
