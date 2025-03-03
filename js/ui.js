@@ -45,16 +45,20 @@ const UI = {
         this.sounds = {};
         
         for (const [name, url] of Object.entries(soundsToLoad)) {
-            // Create audio element
-            const audio = new Audio();
-            audio.src = url;
-            audio.preload = 'auto';
-            
-            // Store in sounds object
-            this.sounds[name] = audio;
-            
-            // Log success
-            console.log(`[UI] Sound '${name}' loaded successfully`);
+            try {
+                // CHANGE: Using HTMLAudioElement constructor directly instead of Audio
+                const audio = document.createElement('audio');
+                audio.src = url;
+                audio.preload = 'auto';
+                
+                // Store in sounds object
+                this.sounds[name] = audio;
+                
+                // Log success
+                console.log(`[UI] Sound '${name}' loaded successfully`);
+            } catch (error) {
+                console.error(`[UI] Failed to load sound "${name}":`, error);
+            }
         }
         
         console.log('[UI] Simple sound system initialized');
@@ -167,12 +171,42 @@ const UI = {
         document.getElementById('inventory-button').addEventListener('click', this.toggleInventory.bind(this));
         document.getElementById('inventory-close').addEventListener('click', this.toggleInventory.bind(this));
         
+        // CHANGE: Updated chat input handling
         // Chat input
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.sendChatMessage();
-            }
-        });
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.sendChatMessage();
+                }
+            });
+            
+            // Disable game controls when chat is focused
+            chatInput.addEventListener('focus', () => {
+                if (typeof Player !== 'undefined') {
+                    // Store the original input state to restore later
+                    Player._inputState = { ...Player.input };
+                    
+                    // Disable movement controls
+                    Player.input.up = false;
+                    Player.input.down = false;
+                    Player.input.left = false;
+                    Player.input.right = false;
+                    
+                    // Flag to indicate chat is focused
+                    Player.chatFocused = true;
+                }
+            });
+            
+            // Re-enable game controls when chat loses focus
+            chatInput.addEventListener('blur', () => {
+                if (typeof Player !== 'undefined') {
+                    // Mark chat as not focused
+                    Player.chatFocused = false;
+                }
+            });
+        }
+        
         document.getElementById('send-chat-button').addEventListener('click', this.sendChatMessage.bind(this));
         
         // User popup close button
@@ -224,6 +258,7 @@ const UI = {
         document.getElementById('stash-button').addEventListener('click', () => this.showFeatureNotice('Stash'));
     },
     
+    // The rest of the UI object methods remain unchanged
     // Show login status
     setLoginStatus: function(message) {
         const statusElement = document.getElementById('login-status');
