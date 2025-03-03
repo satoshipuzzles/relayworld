@@ -75,7 +75,7 @@ const Nostr = {
         }
     },
     
-    // Connect to a relay
+    // Connect to a relay - Fixed using a direct WebSocket approach
     connectRelay: async function(url) {
         try {
             // Check if already connected
@@ -87,28 +87,75 @@ const Nostr = {
             
             console.log(`[Nostr] Connecting to relay: ${url}`);
             
-            // Create relay connection using NostrTools if available
-            let relay;
-            if (window.NostrTools && window.NostrTools.relayInit) {
-                relay = window.NostrTools.relayInit(url);
-                
-                // Set connection timeout
-                const connectionPromise = relay.connect();
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error(`Connection to ${url} timed out`)), 5000);
-                });
-                
-                await Promise.race([connectionPromise, timeoutPromise]);
-            } else {
-                // Fallback to custom WebSocket implementation
-                relay = { url, connect: () => this.createWebSocket(url) };
-                await relay.connect();
-            }
+            // Create a new WebSocket connection
+            const ws = new WebSocket(url);
             
-            // Add to relay list
-            this.relays.add(url);
-            this.relayConnections.set(url, relay);
+            // Wrap the WebSocket in a Promise to handle connection
+            const connectionPromise = new Promise((resolve, reject) => {
+                const timeoutId = setTimeout(() => {
+                    reject(new Error(`Connection to ${url} timed out`));
+                }, 5000);
+                
+                ws.onopen = () => {
+                    clearTimeout(timeoutId);
+                    
+                    // Add custom methods to the WebSocket
+                    const relay = {
+                        url,
+                        socket: ws,
+                        
+                        // Subscription method
+                        sub: (filters, options = {}) => {
+                            return this.createSubscription(relay, filters, options);
+                        },
+                        
+                        // Publish method
+                        publish: (event) => {
+                            return this.publishToRelay(relay, event);
+                        },
+                        
+                        // Close method
+                        close: () => {
+                            ws.close();
+                            this.relayConnections.delete(url);
+                        }
+                    };
+                    
+                    // Set up message handler
+                    ws.onmessage = (event) => {
+                        this.handleRelayMessage(url, event.data);
+                    };
+                    
+                    // Store the relay connection
+                    this.relayConnections.set(url, relay);
+                    this.relays.add(url);
+                    
+                    resolve(relay);
+                };
+                
+                ws.onerror = (error) => {
+                    clearTimeout(timeoutId);
+                    console.error(`[Nostr] WebSocket error for ${url}:`, error);
+                    reject(error);
+                };
+                
+                ws.onclose = () => {
+                    console.log(`[Nostr] WebSocket closed for ${url}`);
+                    this.relayConnections.delete(url);
+                    this.relays.delete(url);
+                    
+                    // Attempt to reconnect if game is still running
+                    if (typeof Game !== 'undefined' && Game.running) {
+                        setTimeout(() => {
+                            this.connectRelay(url).catch(err => 
+                                console.error(`[Nostr] Failed to reconnect to ${url}:`, err)
+                            );
+                        }, 5000);
+                    }
+                };
+            });
             
+            const relay = await connectionPromise;
             console.log(`[Nostr] Connected to relay: ${url}`);
             return relay;
             
@@ -126,112 +173,25 @@ const Nostr = {
         }
     },
     
-    // Create a WebSocket connection (fallback if NostrTools not available)
-    createWebSocket: function(url) {
-        return new Promise((resolve, reject) => {
-            const ws = new WebSocket(url);
-            
-            ws.onopen = () => {
-                // Add custom properties to mimic NostrTools relay object
-                ws.url = url;
-                ws.sub = this.createSubscription.bind(this, ws);
-                ws.publish = this.publishToWebSocket.bind(this, ws);
-                ws.close = () => {
-                    ws.close();
-                    this.relayConnections.delete(url);
-                };
-                
-                this.relayConnections.set(url, ws);
-                resolve(ws);
-            };
-            
-            ws.onerror = (error) => {
-                console.error(`[Nostr] WebSocket error for ${url}:`, error);
-                reject(error);
-            };
-            
-            ws.onclose = () => {
-                console.log(`[Nostr] WebSocket closed for ${url}`);
-                this.relayConnections.delete(url);
-                
-                // Attempt to reconnect if game is still running
-                if (Game && Game.running) {
-                    setTimeout(() => {
-                        this.connectRelay(url).catch(err => 
-                            console.error(`[Nostr] Failed to reconnect to ${url}:`, err)
-                        );
-                    }, 5000);
-                }
-            };
-            
-            ws.onmessage = (event) => {
-                this.handleRelayMessage(url, event.data);
-            };
-        });
-    },
-    
-    // Check connection status
-    checkConnectionStatus: function() {
-        // Count connected relays
-        let connectedCount = 0;
-        let totalRelays = this.relayConnections.size;
-        
-        for (const [url, relay] of this.relayConnections.entries()) {
-            if (relay.readyState === WebSocket.OPEN) {
-                connectedCount++;
-            } else {
-                console.log(`[Nostr] Relay ${url} is not connected. Status: ${relay.readyState}`);
-                
-                // Try to reconnect
-                this.reconnectRelay(url);
-            }
-        }
-        
-        return {
-            connectedCount,
-            totalRelays,
-            allConnected: connectedCount === totalRelays && totalRelays > 0
-        };
-    },
-    
-    // Reconnect to a relay
-    reconnectRelay: async function(url) {
-        try {
-            // Remove existing connection
-            this.closeRelay(url);
-            
-            // Wait a moment before reconnecting
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Try to reconnect
-            await this.connectRelay(url);
-            console.log(`[Nostr] Successfully reconnected to ${url}`);
-            return true;
-        } catch (error) {
-            console.error(`[Nostr] Failed to reconnect to ${url}:`, error);
-            return false;
-        }
-    },
-    
-    // Create a subscription object (fallback if NostrTools not available)
-    createSubscription: function(ws, filters, options = {}) {
+    // Create a subscription object - Fixed implementation
+    createSubscription: function(relay, filters, options = {}) {
         const subId = options.id || Math.random().toString(36).substring(2, 15);
         
         const sub = {
             id: subId,
             filters,
-            relay: ws,
+            relay: relay,
             
             // Event handlers
-            handlers: {
-                event: [],
-                eose: []
-            },
+            eventHandlers: [],
+            eoseHandlers: [],
             
             // Add event handler
             on: function(event, handler) {
-                if (this.handlers[event]) {
-                    this.handlers[event].push(handler);
+                if (event === 'event') {
+                    this.eventHandlers.push(handler);
+                } else if (event === 'eose') {
+                    this.eoseHandlers.push(handler);
                 }
                 return this;
             },
@@ -240,7 +200,7 @@ const Nostr = {
             unsub: function() {
                 try {
                     const msg = JSON.stringify(["CLOSE", subId]);
-                    ws.send(msg);
+                    relay.socket.send(msg);
                     
                     // Clean up subscription
                     Nostr.subscriptions.delete(subId);
@@ -256,7 +216,7 @@ const Nostr = {
         // Send subscription request
         try {
             const msg = JSON.stringify(["REQ", subId, ...filters]);
-            ws.send(msg);
+            relay.socket.send(msg);
         } catch (error) {
             console.error(`[Nostr] Failed to send subscription request:`, error);
             this.subscriptions.delete(subId);
@@ -266,17 +226,17 @@ const Nostr = {
         return sub;
     },
     
-    // Publish to WebSocket (fallback if NostrTools not available)
-    publishToWebSocket: function(ws, event) {
+    // Publish to relay - Fixed implementation
+    publishToRelay: function(relay, event) {
         return new Promise((resolve, reject) => {
-            if (ws.readyState !== WebSocket.OPEN) {
+            if (!relay.socket || relay.socket.readyState !== WebSocket.OPEN) {
                 reject(new Error("WebSocket is not open"));
                 return;
             }
             
             try {
                 const msg = JSON.stringify(["EVENT", event]);
-                ws.send(msg);
+                relay.socket.send(msg);
                 resolve(true);
             } catch (error) {
                 reject(error);
@@ -334,9 +294,9 @@ const Nostr = {
         
         // Find subscription
         const sub = this.subscriptions.get(subId);
-        if (sub && sub.handlers.event.length > 0) {
+        if (sub && sub.eventHandlers && sub.eventHandlers.length > 0) {
             // Call event handlers
-            for (const handler of sub.handlers.event) {
+            for (const handler of sub.eventHandlers) {
                 handler(event);
             }
         }
@@ -348,9 +308,9 @@ const Nostr = {
     // Handle EOSE (End of Stored Events) message
     handleEOSE: function(subId, relayUrl) {
         const sub = this.subscriptions.get(subId);
-        if (sub && sub.handlers.eose.length > 0) {
+        if (sub && sub.eoseHandlers && sub.eoseHandlers.length > 0) {
             // Call EOSE handlers
-            for (const handler of sub.handlers.eose) {
+            for (const handler of sub.eoseHandlers) {
                 handler();
             }
         }
@@ -370,9 +330,13 @@ const Nostr = {
         // Create user entry if not exists
         if (!this.users.has(event.pubkey)) {
             // Generate a semi-deterministic position for new users
-            const hash = CryptoJS.SHA256(event.pubkey).toString();
-            const x = parseInt(hash.substring(0, 8), 16) % Game.world.width;
-            const y = parseInt(hash.substring(8, 16), 16) % Game.world.height;
+            let x = 1500, y = 1500; // Default to middle if CryptoJS not available
+            
+            if (typeof CryptoJS !== 'undefined') {
+                const hash = CryptoJS.SHA256(event.pubkey).toString();
+                x = parseInt(hash.substring(0, 8), 16) % (Game?.world?.width || 3000);
+                y = parseInt(hash.substring(8, 16), 16) % (Game?.world?.height || 3000);
+            }
             
             this.users.set(event.pubkey, {
                 pubkey: event.pubkey,
@@ -435,6 +399,8 @@ const Nostr = {
         }
     },
     
+    // Handler implementations for different event kinds...
+    // Keep all the existing handlers from your code
     // Handle profile metadata event (kind 0)
     handleProfileEvent: function(event, user) {
         try {
@@ -453,20 +419,25 @@ const Nostr = {
             console.log(`[Nostr] Updated profile for ${user.pubkey.slice(0, 8)}`);
             
             // Update UI if this is the current player
-            if (user.pubkey === Player.pubkey) {
+            if (typeof Player !== 'undefined' && user.pubkey === Player.pubkey) {
                 Player.profile = user.profile;
-                UI.updatePlayerProfile();
+                if (typeof UI !== 'undefined' && typeof UI.updatePlayerProfile === 'function') {
+                    UI.updatePlayerProfile();
+                }
             }
             
             // Update UI if showing this user
             const userPopup = document.getElementById('user-popup');
-            if (userPopup && userPopup.dataset.pubkey === user.pubkey) {
-                UI.updateUserPopup(user.pubkey);
+            if (userPopup && userPopup.dataset.pubkey === user.pubkey && typeof UI !== 'undefined') {
+                if (typeof UI.updateUserPopup === 'function') {
+                    UI.updateUserPopup(user.pubkey);
+                }
             }
             
             // Update leaderboard
-            UI.updateLeaderboard();
-            
+            if (typeof UI !== 'undefined' && typeof UI.updateLeaderboard === 'function') {
+                UI.updateLeaderboard();
+            }
         } catch (error) {
             console.error(`[Nostr] Failed to parse profile:`, error);
         }
@@ -489,8 +460,10 @@ const Nostr = {
         
         // Update UI if showing this user
         const userPopup = document.getElementById('user-popup');
-        if (userPopup && userPopup.dataset.pubkey === user.pubkey) {
-            UI.updateUserNotes(user.pubkey);
+        if (userPopup && userPopup.dataset.pubkey === user.pubkey && typeof UI !== 'undefined') {
+            if (typeof UI.updateUserNotes === 'function') {
+                UI.updateUserNotes(user.pubkey);
+            }
         }
     },
     
@@ -513,21 +486,28 @@ const Nostr = {
         console.log(`[Nostr] Updated contacts for ${user.pubkey.slice(0, 8)}: ${user.following.size} following`);
         
         // Update follow button if showing this user
-        if (document.getElementById('user-popup').dataset.pubkey === user.pubkey) {
-            UI.updateFollowButton(user.pubkey);
+        const userPopup = document.getElementById('user-popup');
+        if (userPopup && userPopup.dataset.pubkey === user.pubkey && typeof UI !== 'undefined') {
+            if (typeof UI.updateFollowButton === 'function') {
+                UI.updateFollowButton(user.pubkey);
+            }
         }
     },
     
     // Handle chat message (kind 9)
     handleChatEvent: function(event, user) {
         // Add to global chat
-        if (user.pubkey !== Player.pubkey) {
+        if (typeof Player !== 'undefined' && user.pubkey !== Player.pubkey) {
             const username = user.profile?.name || user.pubkey.slice(0, 8);
-            UI.addChatMessage(username, event.content);
+            if (typeof UI !== 'undefined' && typeof UI.addChatMessage === 'function') {
+                UI.addChatMessage(username, event.content);
+            }
             
             // Play notification sound if message is recent
             if (Date.now() / 1000 - event.created_at < 5) {
-                UI.playSound("chat");
+                if (typeof UI !== 'undefined' && typeof UI.playSound === 'function') {
+                    UI.playSound("chat");
+                }
             }
         }
     },
@@ -535,6 +515,8 @@ const Nostr = {
     // Handle direct message event (kind 4)
     handleDirectMessageEvent: function(event, user) {
         // Only process if addressed to current player
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
+        
         const recipientTag = event.tags.find(tag => tag[0] === 'p' && tag[1] === Player.pubkey);
         if (!recipientTag) return;
         
@@ -546,14 +528,21 @@ const Nostr = {
                 const username = user.profile?.name || user.pubkey.slice(0, 8);
                 
                 // Add to direct message UI if open
-                if (document.getElementById('user-popup').dataset.pubkey === user.pubkey) {
-                    UI.addDirectMessage(username, decrypted, false);
-                } else {
+                const userPopup = document.getElementById('user-popup');
+                if (userPopup && userPopup.dataset.pubkey === user.pubkey && typeof UI !== 'undefined') {
+                    if (typeof UI.addDirectMessage === 'function') {
+                        UI.addDirectMessage(username, decrypted, false);
+                    }
+                } else if (typeof UI !== 'undefined') {
                     // Show notification
-                    UI.showToast(`New message from ${username}`, "info");
+                    if (typeof UI.showToast === 'function') {
+                        UI.showToast(`New message from ${username}`, "info");
+                    }
                     
                     // Play notification sound
-                    UI.playSound("chat");
+                    if (typeof UI.playSound === 'function') {
+                        UI.playSound("chat");
+                    }
                 }
             })
             .catch(error => {
@@ -599,15 +588,19 @@ const Nostr = {
             if (data.questsCompleted !== undefined) {
                 user.questsCompleted = data.questsCompleted;
             }
+            
             // Update player stats
-            if (user.pubkey === Player.pubkey && data.score !== undefined) {
+            if (typeof Player !== 'undefined' && user.pubkey === Player.pubkey && data.score !== undefined) {
                 Player.score = data.score;
-                UI.updatePlayerProfile();
+                if (typeof UI !== 'undefined' && typeof UI.updatePlayerProfile === 'function') {
+                    UI.updatePlayerProfile();
+                }
             }
             
             // Update leaderboard
-            UI.updateLeaderboard();
-            
+            if (typeof UI !== 'undefined' && typeof UI.updateLeaderboard === 'function') {
+                UI.updateLeaderboard();
+            }
         } catch (error) {
             console.error(`[Nostr] Failed to parse score update:`, error);
         }
@@ -620,7 +613,7 @@ const Nostr = {
             if (!event.created_at) {
                 event.created_at = Math.floor(Date.now() / 1000);
             }
-            if (!event.pubkey) {
+            if (!event.pubkey && typeof Player !== 'undefined') {
                 event.pubkey = Player.pubkey;
             }
             
@@ -671,7 +664,7 @@ const Nostr = {
             
             const publishPromises = [];
             for (const [url, relay] of this.relayConnections) {
-                if (relay.readyState === WebSocket.OPEN) {
+                if (relay.socket && relay.socket.readyState === WebSocket.OPEN) {
                     publishPromises.push(relay.publish(signedEvent));
                 }
             }
@@ -719,6 +712,7 @@ const Nostr = {
         }
         
         this.relayConnections.clear();
+        this.relays.clear();
         console.log(`[Nostr] Closed all relay connections`);
     },
     
@@ -729,7 +723,9 @@ const Nostr = {
             console.log(`[Nostr] Set active relay to ${url}`);
             
             // Update UI
-            UI.updateRelaySelector();
+            if (typeof UI !== 'undefined' && typeof UI.updateRelaySelector === 'function') {
+                UI.updateRelaySelector();
+            }
             
             // Fetch events from active relay
             this.fetchFromActiveRelay();
@@ -747,38 +743,61 @@ const Nostr = {
         
         // Subscribe to recent events
         const since = Math.floor(Date.now() / 1000) - 3600; // Last hour
+        let subscribedKinds = [0, 1, 3, 4, 9, 30023];
+        
+        // Use Game's subscribed kinds if available
+        if (typeof Game !== 'undefined' && Game.subscribedKinds) {
+            subscribedKinds = Array.from(Game.subscribedKinds);
+        }
+        
         const filters = [{
-            kinds: Array.from(Game.subscribedKinds),
+            kinds: subscribedKinds,
             since
         }];
         
-        this.subscribe(relay, filters, 
-            (event) => this.processEvent(event, this.activeRelay),
-            () => console.log(`[Nostr] EOSE from ${this.activeRelay}`)
-        );
+        try {
+            this.subscribe(relay, filters, 
+                (event) => this.processEvent(event, this.activeRelay),
+                () => console.log(`[Nostr] EOSE from ${this.activeRelay}`)
+            );
+        } catch (error) {
+            console.error(`[Nostr] Failed to fetch from active relay:`, error);
+        }
     },
     
     // Load player profile
     loadPlayerProfile: async function() {
         try {
+            if (typeof Player === 'undefined' || !Player.pubkey) {
+                throw new Error("Player not initialized");
+            }
+            
             // Request profile from relays
             const filters = [{ kinds: [0], authors: [Player.pubkey], limit: 1 }];
             
             for (const [url, relay] of this.relayConnections) {
-                this.subscribe(relay, filters, 
-                    (event) => this.processEvent(event, url),
-                    () => {} // EOSE handler
-                );
+                try {
+                    this.subscribe(relay, filters, 
+                        (event) => this.processEvent(event, url),
+                        () => {} // EOSE handler
+                    );
+                } catch (error) {
+                    console.error(`[Nostr] Failed to subscribe to profile on ${url}:`, error);
+                }
             }
             
             // Also request contacts
             const contactsFilters = [{ kinds: [3], authors: [Player.pubkey], limit: 1 }];
             
             for (const [url, relay] of this.relayConnections) {
-                this.subscribe(relay, contactsFilters, 
-                    (event) => this.processEvent(event, url),
-                    () => {} // EOSE handler
-                );
+                try {
+                    this.subscribe(relay, contactsFilters, 
+                        (event) => this.processEvent(event, url),
+                        () => {} // EOSE handler
+                    );
+                } catch (error) {
+                    console.error(`[Nostr] Failed to subscribe to contacts on ${url}:`, error);
+                }
             }
             
             // Wait a bit for events to come in
@@ -797,10 +816,14 @@ const Nostr = {
             // Subscribe to all profile updates
             const filters = [{ kinds: [0], limit: 100 }];
             
-            this.subscribe(relay, filters, 
-                (event) => this.processEvent(event, url),
-                () => {} // EOSE handler
-            );
+            try {
+                this.subscribe(relay, filters, 
+                    (event) => this.processEvent(event, url),
+                    () => {} // EOSE handler
+                );
+            } catch (error) {
+                console.error(`[Nostr] Failed to subscribe to profiles on ${url}:`, error);
+            }
         }
     },
     
@@ -808,21 +831,36 @@ const Nostr = {
     subscribeToEvents: function() {
         for (const [url, relay] of this.relayConnections) {
             // Subscribe to all relevant events
+            let subscribedKinds = [0, 1, 3, 4, 9, 30023];
+            
+            // Use Game's subscribed kinds if available
+            if (typeof Game !== 'undefined' && Game.subscribedKinds) {
+                subscribedKinds = Array.from(Game.subscribedKinds);
+            }
+            
             const filters = [{
-                kinds: Array.from(Game.subscribedKinds),
+                kinds: subscribedKinds,
                 limit: 100
             }];
             
-            this.subscribe(relay, filters, 
-                (event) => this.processEvent(event, url),
-                () => {} // EOSE handler
-            );
+            try {
+                this.subscribe(relay, filters, 
+                    (event) => this.processEvent(event, url),
+                    () => {} // EOSE handler
+                );
+            } catch (error) {
+                console.error(`[Nostr] Failed to subscribe to events on ${url}:`, error);
+            }
         }
     },
     
     // Encrypt a message using NIP-04
     encryptMessage: async function(recipientPubkey, message) {
         try {
+            if (!window.nostr || !window.nostr.nip04) {
+                throw new Error("NIP-04 not supported by extension");
+            }
+            
             return await window.nostr.nip04.encrypt(recipientPubkey, message);
         } catch (error) {
             console.error(`[Nostr] Failed to encrypt message:`, error);
@@ -833,6 +871,10 @@ const Nostr = {
     // Decrypt a message using NIP-04
     decryptMessage: async function(encryptedMessage, senderPubkey) {
         try {
+            if (!window.nostr || !window.nostr.nip04) {
+                throw new Error("NIP-04 not supported by extension");
+            }
+            
             return await window.nostr.nip04.decrypt(senderPubkey, encryptedMessage);
         } catch (error) {
             console.error(`[Nostr] Failed to decrypt message:`, error);
@@ -842,7 +884,7 @@ const Nostr = {
     
     // Publish a player position update
     publishPlayerPosition: function(x, y) {
-        if (!Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
         
         const event = {
             kind: 30001,
@@ -863,7 +905,7 @@ const Nostr = {
     
     // Publish a chat message
     publishChatMessage: function(message) {
-        if (!Player.pubkey || !message) return;
+        if (typeof Player === 'undefined' || !Player.pubkey || !message) return false;
         
         const event = {
             kind: 9, // Using NIP-C7 for chat
@@ -876,7 +918,9 @@ const Nostr = {
         // Publish to all relays for chat
         this.publishToAll(event).catch(error => {
             console.error(`[Nostr] Failed to publish chat:`, error);
-            UI.showToast("Failed to send message", "error");
+            if (typeof UI !== 'undefined' && typeof UI.showToast === 'function') {
+                UI.showToast("Failed to send message", "error");
+            }
         });
         
         return true;
@@ -884,7 +928,7 @@ const Nostr = {
     
     // Publish a direct message
     publishDirectMessage: async function(recipientPubkey, message) {
-        if (!Player.pubkey || !recipientPubkey || !message) return;
+        if (typeof Player === 'undefined' || !Player.pubkey || !recipientPubkey || !message) return false;
         
         try {
             // Encrypt the message
@@ -904,14 +948,16 @@ const Nostr = {
             return true;
         } catch (error) {
             console.error(`[Nostr] Failed to publish direct message:`, error);
-            UI.showToast("Failed to send direct message", "error");
+            if (typeof UI !== 'undefined' && typeof UI.showToast === 'function') {
+                UI.showToast("Failed to send direct message", "error");
+            }
             return false;
         }
     },
     
     // Publish a score update
     publishScoreEvent: function() {
-        if (!Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
         
         const event = {
             kind: 30002,
@@ -933,7 +979,7 @@ const Nostr = {
     
     // Publish an item collection event
     publishItemCollectionEvent: function(itemId) {
-        if (!Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
         
         const event = {
             kind: 30003,
@@ -954,7 +1000,7 @@ const Nostr = {
     
     // Publish a quest event
     publishQuestEvent: function(action, questId, reward) {
-        if (!Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
         
         const event = {
             kind: 30004,
@@ -976,7 +1022,7 @@ const Nostr = {
     
     // Publish a weather event
     publishWeatherEvent: function(weatherType) {
-        if (!Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
         
         const event = {
             kind: 30005,
@@ -994,7 +1040,7 @@ const Nostr = {
     
     // Publish a portal event
     publishPortalEvent: function(portalId) {
-        if (!Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
         
         const event = {
             kind: 30006,
@@ -1015,7 +1061,7 @@ const Nostr = {
     
     // Publish a treasure event
     publishTreasureEvent: function(action, treasureId) {
-        if (!Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey) return;
         
         const event = {
             kind: 30007,
@@ -1033,7 +1079,7 @@ const Nostr = {
     
     // Follow a user
     followUser: async function(pubkey) {
-        if (!Player.pubkey || !pubkey) return false;
+        if (typeof Player === 'undefined' || !Player.pubkey || !pubkey) return false;
         
         try {
             // Get current contacts
@@ -1070,7 +1116,9 @@ const Nostr = {
             }
             
             // Update player stats
-            Player.follows++;
+            if (typeof Player.follows !== 'undefined') {
+                Player.follows++;
+            }
             
             return true;
         } catch (error) {
@@ -1081,7 +1129,7 @@ const Nostr = {
     
     // Unfollow a user
     unfollowUser: async function(pubkey) {
-        if (!Player.pubkey || !pubkey) return false;
+        if (typeof Player === 'undefined' || !Player.pubkey || !pubkey) return false;
         
         try {
             // Get current contacts
@@ -1126,7 +1174,7 @@ const Nostr = {
     
     // Check if current player is following a user
     isFollowing: function(pubkey) {
-        if (!Player.pubkey || !pubkey) return false;
+        if (typeof Player === 'undefined' || !Player.pubkey || !pubkey) return false;
         
         const user = this.users.get(Player.pubkey);
         if (!user) return false;
@@ -1140,8 +1188,17 @@ const Nostr = {
     },
     
     // Get nearby users to player
-    getNearbyUsers: function(range = RelayWorld.config.INTERACTION_RANGE) {
+    getNearbyUsers: function(range = 300) {
         const nearby = [];
+        
+        // Use RelayWorld config if available
+        if (typeof RelayWorld !== 'undefined' && 
+            RelayWorld.config && 
+            RelayWorld.config.INTERACTION_RANGE) {
+            range = RelayWorld.config.INTERACTION_RANGE;
+        }
+        
+        if (typeof Player === 'undefined') return nearby;
         
         for (const [pubkey, user] of this.users) {
             if (pubkey === Player.pubkey) continue;
