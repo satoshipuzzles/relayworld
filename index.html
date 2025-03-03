@@ -284,15 +284,48 @@
     <script src="https://unpkg.com/simple-peer/simplepeer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@getalby/bitcoin-connect/dist/index.browser.js"></script>
     
-    <!-- Game Scripts -->
-    <script type="module" src="js/utils.js"></script>
-    <script type="module" src="js/player.js"></script>
-    <script type="module" src="js/items.js"></script>
-    <script type="module" src="js/nostr.js"></script>
-    <script type="module" src="js/zaps.js"></script>
-    <script type="module" src="js/audio.js"></script>
-    <script type="module" src="js/ui.js"></script>
-    <script type="module" src="js/game.js"></script>
-    <script type="module" src="js/main.js"></script>
+    <!-- Game Scripts - Use dynamic imports for better module handling -->
+    <script type="module">
+        // Dynamically import all modules
+        Promise.all([
+            import('./js/utils.js'),
+            import('./js/player.js'),
+            import('./js/items.js'),
+            import('./js/nostr.js'),
+            import('./js/zaps.js'),
+            import('./js/audio.js'),
+            import('./js/ui.js'),
+            import('./js/game.js'),
+            import('./js/debug.js'),
+            import('./js/main.js')
+        ]).then(([
+            Utils,Player, 
+            Items, 
+            Nostr, 
+            Zaps, 
+            Audio, 
+            UI, 
+            Game, 
+            Debug, 
+            RelayWorld
+        ]) => {
+            // Make modules globally available
+            window.Utils = Utils.default;
+            window.Player = Player.default;
+            window.Items = Items.default;
+            window.Nostr = Nostr.default;
+            window.Zaps = Zaps.default;
+            window.Audio = Audio.default;
+            window.UI = UI.default;
+            window.Game = Game.default;
+            window.Debug = Debug.default;
+            window.RelayWorld = RelayWorld.default;
+
+            // Initialize when DOM is ready
+            RelayWorld.default.init();
+        }).catch(error => {
+            console.error('Failed to load modules:', error);
+        });
+    </script>
 </body>
 </html>
