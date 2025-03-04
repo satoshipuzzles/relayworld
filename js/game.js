@@ -1371,3 +1371,6 @@ drawVoiceIndicators: function() {
     ctx.restore();
 }
 };
+
+// Add this export statement at the end of the file
+export default Game;
