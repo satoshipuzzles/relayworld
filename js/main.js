@@ -39,7 +39,9 @@ const RelayWorld = {
             if (!window.Player) throw new Error("Player module not loaded");
             if (!window.Items) throw new Error("Items module not loaded");
             if (!window.UI) throw new Error("UI module not loaded");
-            if (!window.Game) throw new Error("Game module not loaded");
+            import('./js/game.js').then(module => {
+    window.Game = module.default;
+});
 
             window.Utils.init();
             window.Player.init();
