@@ -12,8 +12,8 @@ const Game = {
     animationFrame: 0,
     lastWeatherChange: 0,
     
-    // Subscribed event kinds
-    subscribedKinds: new Set([0, 1, 3, 4, 9, 30023]),
+    // Add a list of game event kinds
+    subscribedGameKinds: null,
     
     // Game world
     world: {
@@ -103,8 +103,8 @@ const Game = {
                     if (Nostr.publishQuestEvent) {
                         Nostr.publishQuestEvent("complete", this.active.id, this.active.reward);
                     }
-                    if (Nostr.publishScoreEvent) {
-                        Nostr.publishScoreEvent();
+                    if (Nostr.publishPlayerStats) {
+                        Nostr.publishPlayerStats();
                     }
                 }
                 
@@ -158,6 +158,17 @@ const Game = {
         }
         
         this.ctx = this.canvas.getContext('2d');
+        
+        // Get game event kinds from RelayWorld config
+        if (typeof RelayWorld !== 'undefined' && RelayWorld.config && RelayWorld.config.EVENT_KINDS) {
+            this.subscribedGameKinds = Object.values(RelayWorld.config.EVENT_KINDS);
+        } else {
+            // Fallback to hardcoded values if config not available
+            this.subscribedGameKinds = [
+                420001, 420002, 420003, 420004, 420005,
+                420006, 420007, 420008, 420009, 420010
+            ];
+        }
         
         // Initialize canvas size
         this.resizeCanvas();
@@ -418,6 +429,9 @@ const Game = {
     updatePlayerMovement: function(deltaTime) {
         if (typeof Player === 'undefined' || !Player.input) return;
         
+        // Check if input should be processed
+        if (!Player.isInputAllowed()) return;
+        
         // Reset velocity
         let dx = 0;
         let dy = 0;
@@ -515,11 +529,11 @@ const Game = {
                 
                 // Publish event
                 if (typeof Nostr !== 'undefined') {
-                    if (Nostr.publishItemCollectionEvent) {
-                        Nostr.publishItemCollectionEvent(item.id);
+                    if (Nostr.publishItemCollection) {
+                        Nostr.publishItemCollection(item.id);
                     }
-                    if (Nostr.publishScoreEvent) {
-                        Nostr.publishScoreEvent();
+                    if (Nostr.publishPlayerStats) {
+                        Nostr.publishPlayerStats();
                     }
                 }
                 
@@ -626,8 +640,8 @@ const Game = {
                 if (Nostr.publishTreasureEvent) {
                     Nostr.publishTreasureEvent("open", treasure.id);
                 }
-                if (Nostr.publishScoreEvent) {
-                    Nostr.publishScoreEvent();
+                if (Nostr.publishPlayerStats) {
+                    Nostr.publishPlayerStats();
                 }
             }
             
@@ -734,10 +748,15 @@ const Game = {
             for (const [pubkey, user] of Nostr.users) {
                 if (pubkey === Player.pubkey) continue;
                 
-                ctx.fillStyle = '#FFFFFF';
+                // Different colors for NPCs vs live players
+                ctx.fillStyle = user.isNPC ? '#8fbc8f' : '#FFFFFF';
+                ctx.globalAlpha = user.isNPC ? 0.5 : 1.0; // More transparent for NPCs
+                
                 ctx.beginPath();
-                ctx.arc(user.x * scale, user.y * scale, 2, 0, Math.PI * 2);
+                ctx.arc(user.x * scale, user.y * scale, user.isNPC ? 1 : 2, 0, Math.PI * 2);
                 ctx.fill();
+                
+                ctx.globalAlpha = 1.0; // Reset alpha
             }
             
             // Draw player
@@ -810,13 +829,14 @@ const Game = {
         console.log(`[Game] Generated ${this.world.collectibles.length} collectibles, ${this.world.treasures.length} treasures, and ${this.world.portals.length} portals`);
     },
     
-    // Publish player position periodically
+    // Publish player position to game relay
     publishPlayerPosition: (function() {
         let lastPublish = 0;
         const PUBLISH_INTERVAL = 200; // 5 times per second
         
         return function() {
-            if (typeof Nostr === 'undefined' || typeof Player === 'undefined' || !Nostr.publishPlayerPosition) return;
+            if (typeof Nostr === 'undefined' || typeof Player === 'undefined' || 
+                !Nostr.publishPlayerPosition) return;
             
             const now = Date.now();
             if (now - lastPublish >= PUBLISH_INTERVAL) {
@@ -857,8 +877,8 @@ const Game = {
             }
             Player.interactions++;
             Player.score += 20;
-            if (Nostr.publishScoreEvent) {
-                Nostr.publishScoreEvent();
+            if (Nostr.publishPlayerStats) {
+                Nostr.publishPlayerStats();
             }
             if (UI.updatePlayerProfile) {
                 UI.updatePlayerProfile();
@@ -871,325 +891,428 @@ const Game = {
         }
         
        // Check for treasures
-    for (const treasure of this.world.treasures) {
-        const distance = Math.sqrt(
-            Math.pow(Player.x - treasure.x, 2) + 
-            Math.pow(Player.y - treasure.y, 2)
-        );
-        
-        if (distance < 50 && !treasure.unlocking) {
-            this.unlockTreasure(treasure);
-            return;
-        }
-    }
-    
-    // Check for portals
-    for (const portal of this.world.portals) {
-        const distance = Math.sqrt(
-            Math.pow(Player.x - portal.x, 2) + 
-            Math.pow(Player.y - portal.y, 2)
-        );
-        
-        if (distance < 50) {
-            this.usePortal(portal);
-            return;
-        }
-    }
-},
-
-// Use a portal to teleport
-usePortal: function(portal) {
-    if (typeof Player === 'undefined' || typeof UI === 'undefined') return;
-        
-    // Teleport to the other portal
-    const otherPortal = this.world.portals.find(p => p.id !== portal.id);
-    if (!otherPortal) return;
-    
-    const gameContainer = document.getElementById('game-container');
-    if (!gameContainer) return;
-    
-    // Create teleport effect
-    const effect = document.createElement('div');
-    effect.className = 'teleport-effect';
-    effect.style.position = 'absolute';
-    effect.style.left = `${Player.x - this.camera.x + this.canvas.width / 2 - 50}px`;
-    effect.style.top = `${Player.y - this.camera.y + this.canvas.height / 2 - 50}px`;
-    effect.style.width = '100px';
-    effect.style.height = '100px';
-    effect.style.backgroundColor = portal.color;
-    effect.style.borderRadius = '50%';
-    effect.style.opacity = '0.7';
-    effect.style.zIndex = '100';
-    gameContainer.appendChild(effect);
-    
-    // Teleport after effect starts
-    setTimeout(() => {
-        Player.x = otherPortal.x;
-        Player.y = otherPortal.y;
-        
-        // Update camera immediately
-        this.camera.x = Player.x;
-        this.camera.y = Player.y;
-        
-        // Remove teleport effect
-        effect.remove();
-        
-        // Show notification
-        UI.showToast(`Teleported to ${otherPortal.id}!`, "success");
-        
-        // Publish event
-        if (typeof Nostr !== 'undefined' && Nostr.publishPortalEvent) {
-            Nostr.publishPortalEvent(otherPortal.id);
-        }
-    }, 500);
-    
-    // Play sound
-    if (UI.playSound) {
-        UI.playSound("portal");
-    }
-},
-
-// Trigger zap for nearby players
-triggerZap: function() {
-    if (typeof Player === 'undefined' || typeof Nostr === 'undefined' || 
-        typeof RelayWorld === 'undefined' || typeof Zaps === 'undefined' || 
-        typeof UI === 'undefined') return;
-        
-    if (!Nostr.users || !RelayWorld.config || !Zaps.showZapInterface) {
-        console.error("[Game] Required modules not fully initialized for zap");
-        return;
-    }
-        
-    let closestPlayer = null;
-    let closestDistance = Infinity;
-    
-    // Find closest player
-    for (const [pubkey, user] of Nostr.users) {
-        if (pubkey === Player.pubkey) continue;
-        
-        const distance = Math.sqrt(
-            Math.pow(Player.x - user.x, 2) + 
-            Math.pow(Player.y - user.y, 2)
-        );
-        
-        if (distance < RelayWorld.config.INTERACTION_RANGE && distance < closestDistance) {
-            closestPlayer = pubkey;
-            closestDistance = distance;
-        }
-    }
-    
-    // Zap closest player
-    if (closestPlayer) {
-        Zaps.showZapInterface(closestPlayer);
-        return;
-    }
-    
-    UI.showToast("No players nearby to zap!", "warning");
-},
-
-// Drawing functions
-drawBackground: function() {
-    const ctx = this.ctx;
-    const gridSize = 50;
-    
-    ctx.strokeStyle = 'rgba(139, 172, 15, 0.1)';
-    ctx.lineWidth = 1;
-    
-    // Calculate grid boundaries based on camera position
-    const startX = Math.floor(this.camera.x / gridSize) * gridSize;
-    const startY = Math.floor(this.camera.y / gridSize) * gridSize;
-    const endX = startX + this.camera.width + gridSize;
-    const endY = startY + this.camera.height + gridSize;
-    
-    // Draw vertical lines
-    for (let x = startX; x <= endX; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x - (this.camera.x - this.canvas.width / 2), 0);
-        ctx.lineTo(x - (this.camera.x - this.canvas.width / 2), this.canvas.height);
-        ctx.stroke();
-    }
-    
-    // Draw horizontal lines
-    for (let y = startY; y <= endY; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y - (this.camera.y - this.canvas.height / 2));
-        ctx.lineTo(this.canvas.width, y - (this.camera.y - this.canvas.height / 2));
-        ctx.stroke();
-    }
-},
-
-drawWorldBounds: function() {
-    const ctx = this.ctx;
-    
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-    ctx.lineWidth = 2;
-    
-    // Calculate screen coordinates of world bounds
-    const screenX = 0 - (this.camera.x - this.canvas.width / 2);
-    const screenY = 0 - (this.camera.y - this.canvas.height / 2);
-    
-    // Draw world border
-    ctx.strokeRect(screenX, screenY, this.world.width, this.world.height);
-},
-
-drawCollectibles: function() {
-    const ctx = this.ctx;
-    
-    for (const item of this.world.collectibles) {
-        // Calculate screen coordinates
-        const screenX = item.x - (this.camera.x - this.canvas.width / 2);
-        const screenY = item.y - (this.camera.y - this.canvas.height / 2);
-        
-        // Skip if out of view
-        if (screenX < -20 || screenX > this.canvas.width + 20 ||
-            screenY < -20 || screenY > this.canvas.height + 20) {
-            continue;
-        }
-        
-        // Draw item
-        ctx.save();
-        ctx.font = "16px 'Press Start 2P', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(item.emoji || "❓", screenX, screenY);
-        ctx.restore();
-    }
-},
-
-drawTreasures: function() {
-    const ctx = this.ctx;
-    
-    for (const treasure of this.world.treasures) {
-        // Calculate screen coordinates
-        const screenX = treasure.x - (this.camera.x - this.canvas.width / 2);
-        const screenY = treasure.y - (this.camera.y - this.canvas.height / 2);
-        
-        // Skip if out of view
-        if (screenX < -20 || screenX > this.canvas.width + 20 ||
-            screenY < -20 || screenY > this.canvas.height + 20) {
-            continue;
-        }
-        
-        // Draw treasure
-        ctx.save();
-        ctx.font = "20px 'Press Start 2P', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("🎁", screenX, screenY);
-        
-        // If unlocking, draw progress circle
-        if (treasure.unlocking) {
-            const elapsed = (Date.now() - treasure.unlockStart) / 3000; // 3 second unlock
+        for (const treasure of this.world.treasures) {
+            const distance = Math.sqrt(
+                Math.pow(Player.x - treasure.x, 2) + 
+                Math.pow(Player.y - treasure.y, 2)
+            );
             
-            ctx.fillStyle = "rgba(255, 215, 0, 0.3)";
+            if (distance < 50 && !treasure.unlocking) {
+                this.unlockTreasure(treasure);
+                return;
+            }
+        }
+        
+        // Check for portals
+        for (const portal of this.world.portals) {
+            const distance = Math.sqrt(
+                Math.pow(Player.x - portal.x, 2) + 
+                Math.pow(Player.y - portal.y, 2)
+            );
+            
+            if (distance < 50) {
+                this.usePortal(portal);
+                return;
+            }
+        }
+    },
+    
+    // Use a portal to teleport
+    usePortal: function(portal) {
+        if (typeof Player === 'undefined' || typeof UI === 'undefined') return;
+            
+        // Teleport to the other portal
+        const otherPortal = this.world.portals.find(p => p.id !== portal.id);
+        if (!otherPortal) return;
+        
+        const gameContainer = document.getElementById('game-container');
+        if (!gameContainer) return;
+        
+        // Create teleport effect
+        const effect = document.createElement('div');
+        effect.className = 'teleport-effect';
+        effect.style.position = 'absolute';
+        effect.style.left = `${Player.x - this.camera.x + this.canvas.width / 2 - 50}px`;
+        effect.style.top = `${Player.y - this.camera.y + this.canvas.height / 2 - 50}px`;
+        effect.style.width = '100px';
+        effect.style.height = '100px';
+        effect.style.backgroundColor = portal.color;
+        effect.style.borderRadius = '50%';
+        effect.style.opacity = '0.7';
+        effect.style.zIndex = '100';
+        gameContainer.appendChild(effect);
+        
+        // Teleport after effect starts
+        setTimeout(() => {
+            Player.x = otherPortal.x;
+            Player.y = otherPortal.y;
+            
+            // Update camera immediately
+            this.camera.x = Player.x;
+            this.camera.y = Player.y;
+            
+            // Remove teleport effect
+            effect.remove();
+            
+            // Show notification
+            UI.showToast(`Teleported to ${otherPortal.id}!`, "success");
+            
+            // Publish event
+            if (typeof Nostr !== 'undefined' && Nostr.publishPortalEvent) {
+                Nostr.publishPortalEvent(otherPortal.id);
+            }
+        }, 500);
+        
+        // Play sound
+        if (UI.playSound) {
+            UI.playSound("portal");
+        }
+    },
+    
+    // Trigger zap for nearby players
+    triggerZap: function() {
+        if (typeof Player === 'undefined' || typeof Nostr === 'undefined' || 
+            typeof RelayWorld === 'undefined' || typeof Zaps === 'undefined' || 
+            typeof UI === 'undefined') return;
+            
+        if (!Nostr.users || !RelayWorld.config || !Zaps.showZapInterface) {
+            console.error("[Game] Required modules not fully initialized for zap");
+            return;
+        }
+            
+        let closestPlayer = null;
+        let closestDistance = Infinity;
+        
+        // Find closest player
+        for (const [pubkey, user] of Nostr.users) {
+            if (pubkey === Player.pubkey) continue;
+            
+            const distance = Math.sqrt(
+                Math.pow(Player.x - user.x, 2) + 
+                Math.pow(Player.y - user.y, 2)
+            );
+            
+            if (distance < RelayWorld.config.INTERACTION_RANGE && distance < closestDistance) {
+                closestPlayer = pubkey;
+                closestDistance = distance;
+            }
+        }
+        
+        // Zap closest player
+        if (closestPlayer) {
+            Zaps.showZapInterface(closestPlayer);
+            return;
+        }
+        
+        UI.showToast("No players nearby to zap!", "warning");
+    },
+    
+    // Drawing functions
+    drawBackground: function() {
+        const ctx = this.ctx;
+        const gridSize = 50;
+        
+        ctx.strokeStyle = 'rgba(139, 172, 15, 0.1)';
+        ctx.lineWidth = 1;
+        
+        // Calculate grid boundaries based on camera position
+        const startX = Math.floor(this.camera.x / gridSize) * gridSize;
+        const startY = Math.floor(this.camera.y / gridSize) * gridSize;
+        const endX = startX + this.camera.width + gridSize;
+        const endY = startY + this.camera.height + gridSize;
+        
+        // Draw vertical lines
+        for (let x = startX; x <= endX; x += gridSize) {
             ctx.beginPath();
-            ctx.arc(screenX, screenY, 25, 0, Math.PI * 2 * Math.min(elapsed, 1));
+            ctx.moveTo(x - (this.camera.x - this.canvas.width / 2), 0);
+            ctx.lineTo(x - (this.camera.x - this.canvas.width / 2), this.canvas.height);
+            ctx.stroke();
+        }
+        
+        // Draw horizontal lines
+        for (let y = startY; y <= endY; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y - (this.camera.y - this.canvas.height / 2));
+            ctx.lineTo(this.canvas.width, y - (this.camera.y - this.canvas.height / 2));
+            ctx.stroke();
+        }
+    },
+    
+    drawWorldBounds: function() {
+        const ctx = this.ctx;
+        
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+        ctx.lineWidth = 2;
+        
+        // Calculate screen coordinates of world bounds
+        const screenX = 0 - (this.camera.x - this.canvas.width / 2);
+        const screenY = 0 - (this.camera.y - this.canvas.height / 2);
+        
+        // Draw world border
+        ctx.strokeRect(screenX, screenY, this.world.width, this.world.height);
+    },
+    
+    drawCollectibles: function() {
+        const ctx = this.ctx;
+        
+        for (const item of this.world.collectibles) {
+            // Calculate screen coordinates
+            const screenX = item.x - (this.camera.x - this.canvas.width / 2);
+            const screenY = item.y - (this.camera.y - this.canvas.height / 2);
+            
+            // Skip if out of view
+            if (screenX < -20 || screenX > this.canvas.width + 20 ||
+                screenY < -20 || screenY > this.canvas.height + 20) {
+                continue;
+            }
+            
+            // Draw item
+            ctx.save();
+            ctx.font = "16px 'Press Start 2P', sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(item.emoji || "❓", screenX, screenY);
+            ctx.restore();
+        }
+    },
+    
+    drawTreasures: function() {
+        const ctx = this.ctx;
+        
+        for (const treasure of this.world.treasures) {
+            // Calculate screen coordinates
+            const screenX = treasure.x - (this.camera.x - this.canvas.width / 2);
+            const screenY = treasure.y - (this.camera.y - this.canvas.height / 2);
+            
+            // Skip if out of view
+            if (screenX < -20 || screenX > this.canvas.width + 20 ||
+                screenY < -20 || screenY > this.canvas.height + 20) {
+                continue;
+            }
+            
+            // Draw treasure
+            ctx.save();
+            ctx.font = "20px 'Press Start 2P', sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("🎁", screenX, screenY);
+            
+            // If unlocking, draw progress circle
+            if (treasure.unlocking) {
+                const elapsed = (Date.now() - treasure.unlockStart) / 3000; // 3 second unlock
+                
+                ctx.fillStyle = "rgba(255, 215, 0, 0.3)";
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 25, 0, Math.PI * 2 * Math.min(elapsed, 1));
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+    },
+    
+    drawPortals: function() {
+        const ctx = this.ctx;
+        
+        for (const portal of this.world.portals) {
+            // Calculate screen coordinates
+            const screenX = portal.x - (this.camera.x - this.canvas.width / 2);
+            const screenY = portal.y - (this.camera.y - this.canvas.height / 2);
+            
+            // Skip if out of view
+            if (screenX < -30 || screenX > this.canvas.width + 30 ||
+                screenY < -30 || screenY > this.canvas.height + 30) {
+                continue;
+            }
+            
+            // Draw portal
+            ctx.save();
+            
+            // Draw outer circle
+            const gradient = ctx.createRadialGradient(
+                screenX, screenY, 5,
+                screenX, screenY, 25
+            );
+            gradient.addColorStop(0, portal.color);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 25, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Draw inner circle
+            ctx.fillStyle = '#FFFFFF';
+            ctx.globalAlpha = 0.5 + 0.5 * Math.sin(this.animationFrame * 0.1);
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 10, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
         }
-        
-        ctx.restore();
-    }
-},
-
-drawPortals: function() {
-    const ctx = this.ctx;
+    },
     
-    for (const portal of this.world.portals) {
-        // Calculate screen coordinates
-        const screenX = portal.x - (this.camera.x - this.canvas.width / 2);
-        const screenY = portal.y - (this.camera.y - this.canvas.height / 2);
+    drawEnemies: function() {
+        const ctx = this.ctx;
         
-        // Skip if out of view
-        if (screenX < -30 || screenX > this.canvas.width + 30 ||
-            screenY < -30 || screenY > this.canvas.height + 30) {
-            continue;
+        for (const enemy of this.world.enemies) {
+            // Calculate screen coordinates
+            const screenX = enemy.x - (this.camera.x - this.canvas.width / 2);
+            const screenY = enemy.y - (this.camera.y - this.canvas.height / 2);
+            
+            // Skip if out of view
+            if (screenX < -20 || screenX > this.canvas.width + 20 ||
+                screenY < -20 || screenY > this.canvas.height + 20) {
+                continue;
+            }
+            
+            // Draw enemy
+            ctx.save();
+            
+            ctx.fillStyle = '#CF6679';
+            ctx.fillRect(screenX - 15, screenY - 15, 30, 30);
+            
+            // Draw health bar
+            const healthPercent = enemy.health / 100;
+            
+            ctx.fillStyle = '#111';
+            ctx.fillRect(screenX - 15, screenY + 20, 30, 5);
+            
+            ctx.fillStyle = '#CF6679';
+            ctx.fillRect(screenX - 15, screenY + 20, 30 * healthPercent, 5);
+            
+            ctx.restore();
         }
-        
-        // Draw portal
-        ctx.save();
-        
-        // Draw outer circle
-        const gradient = ctx.createRadialGradient(
-            screenX, screenY, 5,
-            screenX, screenY, 25
-        );
-        gradient.addColorStop(0, portal.color);
-        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 25, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Draw inner circle
-        ctx.fillStyle = '#FFFFFF';
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(this.animationFrame * 0.1);
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 10, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.restore();
-    }
-},
-
-drawEnemies: function() {
-    const ctx = this.ctx;
+    },
     
-    for (const enemy of this.world.enemies) {
-        // Calculate screen coordinates
-        const screenX = enemy.x - (this.camera.x - this.canvas.width / 2);
-        const screenY = enemy.y - (this.camera.y - this.canvas.height / 2);
+    drawPlayers: function() {
+        if (typeof Nostr === 'undefined' || typeof Player === 'undefined' || !Nostr.users) return;
         
-        // Skip if out of view
-        if (screenX < -20 || screenX > this.canvas.width + 20 ||
-            screenY < -20 || screenY > this.canvas.height + 20) {
-            continue;
+        const ctx = this.ctx;
+        
+        for (const [pubkey, user] of Nostr.users) {
+            if (pubkey === Player.pubkey) continue;
+            
+            // Calculate screen coordinates
+            const screenX = user.x - (this.camera.x - this.canvas.width / 2);
+            const screenY = user.y - (this.camera.y - this.canvas.height / 2) + (user.isNPC ? 0 : (user.bobOffset || 0));
+            
+            // Skip if out of view
+            if (screenX < -50 || screenX > this.canvas.width + 50 ||
+                screenY < -50 || screenY > this.canvas.height + 50) {
+                continue;
+            }
+            
+            // Draw player with different styling for NPCs vs live players
+            ctx.save();
+            
+            // Apply transparency for NPCs
+            if (user.isNPC) {
+                ctx.globalAlpha = 0.7;
+            }
+            
+            // Draw player avatar
+            if (user.profile && user.profile.picture) {
+                const img = new Image();
+                img.src = user.profile.picture;
+                
+                try {
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.drawImage(img, screenX - 15, screenY - 30, 30, 30);
+                } catch (e) {
+                    // Fallback if image fails to load
+                    ctx.fillStyle = user.isNPC ? '#6B8E23' : '#9BBC0F'; // Different color for NPCs
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                ctx.fillStyle = user.isNPC ? '#6B8E23' : '#9BBC0F'; // Different color for NPCs
+                ctx.beginPath();
+                ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.restore();
+            
+            // Draw player body
+            ctx.save();
+            ctx.strokeStyle = user.isNPC ? '#AAAAAA' : '#FFFFFF'; // Grayer for NPCs
+            ctx.lineWidth = 2;
+            
+            // Body
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(screenX, screenY + 20);
+            ctx.stroke();
+            
+            // Arms
+            ctx.beginPath();
+            ctx.moveTo(screenX - 10, screenY + 10);
+            ctx.lineTo(screenX + 10, screenY + 10);
+            ctx.stroke();
+            
+            // Legs
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY + 20);
+            ctx.lineTo(screenX - 10, screenY + 30);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY + 20);
+            ctx.lineTo(screenX + 10, screenY + 30);
+            ctx.stroke();
+            
+            ctx.restore();
+            
+            // Draw player name
+            ctx.save();
+            ctx.fillStyle = user.isNPC ? '#CCCCCC' : '#FFFFFF'; // Grayer for NPCs
+            ctx.font = "10px 'Press Start 2P', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(user.profile?.name || pubkey.slice(0, 8), screenX, screenY - 40);
+            ctx.restore();
+            
+            // NPC indicator
+            if (user.isNPC) {
+                ctx.save();
+                ctx.fillStyle = '#AAAAAA';
+                ctx.font = "8px 'Press Start 2P', sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("[NPC]", screenX, screenY - 55);
+                ctx.restore();
+            }
+            
+            // Draw voice indicator if speaking
+            if (typeof Audio !== 'undefined' && Audio.isUserSpeaking && Audio.isUserSpeaking(pubkey)) {
+                ctx.save();
+                ctx.fillStyle = user.isNPC ? '#6B8E23' : '#8BAC0F';
+                ctx.beginPath();
+                ctx.arc(screenX, screenY - 50, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
         }
-        
-        // Draw enemy
-        ctx.save();
-        
-        ctx.fillStyle = '#CF6679';
-        ctx.fillRect(screenX - 15, screenY - 15, 30, 30);
-        
-        // Draw health bar
-        const healthPercent = enemy.health / 100;
-        
-        ctx.fillStyle = '#111';
-        ctx.fillRect(screenX - 15, screenY + 20, 30, 5);
-        
-        ctx.fillStyle = '#CF6679';
-        ctx.fillRect(screenX - 15, screenY + 20, 30 * healthPercent, 5);
-        
-        ctx.restore();
-    }
-},
-
-drawPlayers: function() {
-    if (typeof Nostr === 'undefined' || typeof Player === 'undefined' || !Nostr.users) return;
+    },
     
-    const ctx = this.ctx;
-    
-    for (const [pubkey, user] of Nostr.users) {
-        if (pubkey === Player.pubkey) continue;
+    drawPlayer: function() {
+        if (typeof Player === 'undefined') return;
         
-        // Calculate screen coordinates
-        const screenX = user.x - (this.camera.x - this.canvas.width / 2);
-        const screenY = user.y - (this.camera.y - this.canvas.height / 2) + (user.bobOffset || 0);
+        const ctx = this.ctx;
         
-        // Skip if out of view
-        if (screenX < -50 || screenX > this.canvas.width + 50 ||
-            screenY < -50 || screenY > this.canvas.height + 50) {
-            continue;
-        }
+        // Player is always drawn at the center of the screen
+        const screenX = this.canvas.width / 2;
+        const screenY = this.canvas.height / 2 + Player.bobOffset;
         
         // Draw player
         ctx.save();
         
         // Draw player avatar
-        if (user.profile && user.profile.picture) {
+        if (Player.profile && Player.profile.picture) {
             const img = new Image();
-            img.src = user.profile.picture;
+            img.src = Player.profile.picture;
             
             try {
                 ctx.beginPath();
@@ -1198,13 +1321,13 @@ drawPlayers: function() {
                 ctx.drawImage(img, screenX - 15, screenY - 30, 30, 30);
             } catch (e) {
                 // Fallback if image fails to load
-                ctx.fillStyle = '#9BBC0F';
+                ctx.fillStyle = '#8BAC0F';
                 ctx.beginPath();
                 ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
                 ctx.fill();
             }
         } else {
-            ctx.fillStyle = '#9BBC0F';
+            ctx.fillStyle = '#8BAC0F';
             ctx.beginPath();
             ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
             ctx.fill();
@@ -1247,11 +1370,11 @@ drawPlayers: function() {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = "10px 'Press Start 2P', sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(user.profile?.name || pubkey.slice(0, 8), screenX, screenY - 40);
+        ctx.fillText(Player.profile?.name || Player.pubkey.slice(0, 8), screenX, screenY - 40);
         ctx.restore();
         
         // Draw voice indicator if speaking
-        if (typeof Audio !== 'undefined' && Audio.isUserSpeaking && Audio.isUserSpeaking(pubkey)) {
+        if (typeof Audio !== 'undefined' && Audio.isLocalUserSpeaking && Audio.isLocalUserSpeaking()) {
             ctx.save();
             ctx.fillStyle = '#8BAC0F';
             ctx.beginPath();
@@ -1259,117 +1382,29 @@ drawPlayers: function() {
             ctx.fill();
             ctx.restore();
         }
-    }
-},
-
-drawPlayer: function() {
-    if (typeof Player === 'undefined') return;
+    },
     
-    const ctx = this.ctx;
-    
-    // Player is always drawn at the center of the screen
-    const screenX = this.canvas.width / 2;
-    const screenY = this.canvas.height / 2 + Player.bobOffset;
-    
-    // Draw player
-    ctx.save();
-    
-    // Draw player avatar
-    if (Player.profile && Player.profile.picture) {
-        const img = new Image();
-        img.src = Player.profile.picture;
+    drawVoiceIndicators: function() {
+        // Draw voice chat range indicator
+        if (typeof RelayWorld === 'undefined' || !RelayWorld.config) return;
         
-        try {
-            ctx.beginPath();
-            ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
-            ctx.clip();
-            ctx.drawImage(img, screenX - 15, screenY - 30, 30, 30);
-        } catch (e) {
-            // Fallback if image fails to load
-            ctx.fillStyle = '#8BAC0F';
-            ctx.beginPath();
-            ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    } else {
-        ctx.fillStyle = '#8BAC0F';
-        ctx.beginPath();
-        ctx.arc(screenX, screenY - 15, 15, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    
-    ctx.restore();
-    
-    // Draw player body
-    ctx.save();
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 2;
-    
-    // Body
-    ctx.beginPath();
-    ctx.moveTo(screenX, screenY);
-    ctx.lineTo(screenX, screenY + 20);
-    ctx.stroke();
-    
-    // Arms
-    ctx.beginPath();
-    ctx.moveTo(screenX - 10, screenY + 10);
-    ctx.lineTo(screenX + 10, screenY + 10);
-    ctx.stroke();
-    
-    // Legs
-    ctx.beginPath();
-    ctx.moveTo(screenX, screenY + 20);
-    ctx.lineTo(screenX - 10, screenY + 30);
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.moveTo(screenX, screenY + 20);
-    ctx.lineTo(screenX + 10, screenY + 30);
-    ctx.stroke();
-    
-    ctx.restore();
-    
-    // Draw player name
-    ctx.save();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = "10px 'Press Start 2P', sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(Player.profile?.name || Player.pubkey.slice(0, 8), screenX, screenY - 40);
-    ctx.restore();
-    
-    // Draw voice indicator if speaking
-    if (typeof Audio !== 'undefined' && Audio.isLocalUserSpeaking && Audio.isLocalUserSpeaking()) {
+        const ctx = this.ctx;
+        
         ctx.save();
-        ctx.fillStyle = '#8BAC0F';
+        ctx.strokeStyle = 'rgba(139, 172, 15, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
         ctx.beginPath();
-        ctx.arc(screenX, screenY - 50, 5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.arc(
+            this.canvas.width / 2, 
+            this.canvas.height / 2, 
+            RelayWorld.config.VOICE_CHAT_RANGE, 
+            0, 
+            Math.PI * 2
+        );
+        ctx.stroke();
         ctx.restore();
     }
-},
-
-drawVoiceIndicators: function() {
-    // Draw voice chat range indicator
-    if (typeof RelayWorld === 'undefined' || !RelayWorld.config) return;
-    
-    const ctx = this.ctx;
-    
-    ctx.save();
-    ctx.strokeStyle = 'rgba(139, 172, 15, 0.2)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.arc(
-        this.canvas.width / 2, 
-        this.canvas.height / 2, 
-        RelayWorld.config.VOICE_CHAT_RANGE, 
-        0, 
-        Math.PI * 2
-    );
-    ctx.stroke();
-    ctx.restore();
-}
 };
 
 // Add this export statement at the end of the file

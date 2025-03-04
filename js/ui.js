@@ -159,11 +159,19 @@ const UI = {
         
         document.getElementById('relay-selector').addEventListener('change', (e) => {
             const relayUrl = e.target.value;
-            Nostr.setActiveRelay(relayUrl);
+            if (typeof Nostr !== 'undefined' && typeof Nostr.setActiveExplorerRelay === 'function') {
+                Nostr.setActiveExplorerRelay(relayUrl);
+            }
         });
         
         document.getElementById('add-relay-button').addEventListener('click', this.addCustomRelay.bind(this));
         document.getElementById('add-kind-button').addEventListener('click', this.addCustomKind.bind(this));
+        
+        // Add relay info button event listener
+        const relayInfoButton = document.getElementById('relay-info-button');
+        if (relayInfoButton) {
+            relayInfoButton.addEventListener('click', this.showRelayInfo.bind(this));
+        }
         
         document.getElementById('guild-button').addEventListener('click', () => this.showFeatureNotice('Guild'));
         document.getElementById('shop-button').addEventListener('click', () => this.showFeatureNotice('Shop'));
@@ -224,18 +232,57 @@ const UI = {
         document.getElementById('score-display').textContent = `Score: ${Utils.formatNumber(Player.score)}`;
     },
     
+    // Update relay selector to show relay types
     updateRelaySelector: function() {
         const selector = document.getElementById('relay-selector');
         selector.innerHTML = '';
-        for (const relayUrl of Nostr.relays) {
+        
+        if (typeof RelayWorld === 'undefined' || !RelayWorld.config || 
+            typeof Nostr === 'undefined' || !Nostr.explorerRelays) {
+            return;
+        }
+        
+        // Add header group for game relay
+        const gameGroup = document.createElement('optgroup');
+        gameGroup.label = "Game Relay (Locked)";
+        
+        const gameOption = document.createElement('option');
+        gameOption.value = RelayWorld.config.GAME_RELAY;
+        gameOption.textContent = RelayWorld.config.GAME_RELAY.replace('wss://', '');
+        gameOption.disabled = true;
+        gameGroup.appendChild(gameOption);
+        selector.appendChild(gameGroup);
+        
+        // Add header for login relay
+        const loginGroup = document.createElement('optgroup');
+        loginGroup.label = "Login Relay (Default)";
+        
+        const loginOption = document.createElement('option');
+        loginOption.value = RelayWorld.config.LOGIN_RELAY;
+        loginOption.textContent = RelayWorld.config.LOGIN_RELAY.replace('wss://', '');
+        loginOption.disabled = true;
+        loginGroup.appendChild(loginOption);
+        selector.appendChild(loginGroup);
+        
+        // Add explorer relays group
+        const explorerGroup = document.createElement('optgroup');
+        explorerGroup.label = "Explorer Relays";
+        
+        for (const [relayUrl] of Nostr.explorerRelays) {
+            // Skip game and login relays in this section
+            if (relayUrl === RelayWorld.config.GAME_RELAY || 
+                relayUrl === RelayWorld.config.LOGIN_RELAY) continue;
+                
             const option = document.createElement('option');
             option.value = relayUrl;
             option.textContent = relayUrl.replace('wss://', '');
-            option.selected = relayUrl === Nostr.activeRelay;
-            selector.appendChild(option);
+            option.selected = relayUrl === Nostr.activeExplorerRelay;
+            explorerGroup.appendChild(option);
         }
+        selector.appendChild(explorerGroup);
     },
     
+    // Update addCustomRelay to connect to explorer relays
     addCustomRelay: function() {
         const input = document.getElementById('custom-relay-input');
         let relayUrl = input.value.trim();
@@ -243,14 +290,32 @@ const UI = {
             this.showToast("Please enter a relay URL", "error");
             return;
         }
+        
         if (!relayUrl.startsWith('wss://')) relayUrl = `wss://${relayUrl}`;
-        Nostr.connectRelay(relayUrl)
-            .then(() => {
-                this.showToast(`Connected to relay: ${relayUrl}`, "success");
-                this.updateRelaySelector();
-                input.value = '';
-            })
-            .catch(error => this.showToast(`Failed to connect to relay: ${error.message}`, "error"));
+        
+        // Don't allow changing game relay
+        if (relayUrl === RelayWorld.config.GAME_RELAY) {
+            this.showToast("Cannot modify the game relay", "error");
+            return;
+        }
+        
+        // Don't allow changing login relay
+        if (relayUrl === RelayWorld.config.LOGIN_RELAY) {
+            this.showToast("Cannot modify the login relay", "error");
+            return;
+        }
+        
+        if (typeof Nostr !== 'undefined' && typeof Nostr.connectToExplorerRelay === 'function') {
+            Nostr.connectToExplorerRelay(relayUrl)
+                .then(() => {
+                    this.showToast(`Connected to explorer relay: ${relayUrl}`, "success");
+                    this.updateRelaySelector();
+                    input.value = '';
+                })
+                .catch(error => this.showToast(`Failed to connect to relay: ${error.message}`, "error"));
+        } else {
+            this.showToast("Nostr module not fully initialized", "error");
+        }
     },
     
     addCustomKind: function() {
@@ -278,20 +343,118 @@ const UI = {
     updateKindsSelector: function() {
         const selector = document.getElementById('kinds-selector');
         selector.innerHTML = '';
-        for (const kind of Game.subscribedKinds) {
-            const option = document.createElement('option');
-            option.value = kind;
-            option.textContent = `Kind ${kind}`;
-            switch (kind) {
-                case 0: option.textContent += " (Metadata)"; break;
-                case 1: option.textContent += " (Text Note)"; break;
-                case 3: option.textContent += " (Contacts)"; break;
-                case 4: option.textContent += " (Direct Message)"; break;
-                case 9: option.textContent += " (Chat)"; break;
-                case 30023: option.textContent += " (Long-form Content)"; break;
+        
+        // Add Game event kinds group
+        const gameKindsGroup = document.createElement('optgroup');
+        gameKindsGroup.label = "Game Event Kinds";
+        
+        if (typeof RelayWorld !== 'undefined' && RelayWorld.config && RelayWorld.config.EVENT_KINDS) {
+            const kinds = RelayWorld.config.EVENT_KINDS;
+            
+            for (const [name, kind] of Object.entries(kinds)) {
+                const option = document.createElement('option');
+                option.value = kind;
+                option.textContent = `${kind} (${name.toLowerCase()})`;
+                option.disabled = true; // Game kinds are locked
+                gameKindsGroup.appendChild(option);
             }
-            selector.appendChild(option);
+            selector.appendChild(gameKindsGroup);
         }
+        
+        // Add Explorer event kinds group
+        const explorerKindsGroup = document.createElement('optgroup');
+        explorerKindsGroup.label = "Explorer Event Kinds";
+        
+        if (typeof RelayWorld !== 'undefined' && RelayWorld.config && RelayWorld.config.EXPLORER_KINDS) {
+            const kinds = RelayWorld.config.EXPLORER_KINDS;
+            
+            for (const kind of kinds) {
+                const option = document.createElement('option');
+                option.value = kind;
+                option.textContent = `Kind ${kind}`;
+                
+                // Add description for known kinds
+                switch (kind) {
+                    case 0: option.textContent += " (Metadata)"; break;
+                    case 1: option.textContent += " (Text Note)"; break;
+                    case 3: option.textContent += " (Contacts)"; break;
+                    case 4: option.textContent += " (Direct Message)"; break;
+                    case 9: option.textContent += " (Chat)"; break;
+                    case 30023: option.textContent += " (Long-form Content)"; break;
+                }
+                
+                explorerKindsGroup.appendChild(option);
+            }
+            selector.appendChild(explorerKindsGroup);
+        }
+        
+        // Add custom kinds group
+        if (Game && Game.subscribedGameKinds) {
+            const customKindsGroup = document.createElement('optgroup');
+            customKindsGroup.label = "Custom Event Kinds";
+            
+            for (const kind of Game.subscribedGameKinds) {
+                // Skip if it's already in one of the standard groups
+                if (
+                    (RelayWorld.config.EVENT_KINDS && Object.values(RelayWorld.config.EVENT_KINDS).includes(kind)) ||
+                    (RelayWorld.config.EXPLORER_KINDS && RelayWorld.config.EXPLORER_KINDS.includes(kind))
+                ) {
+                    continue;
+                }
+                
+                const option = document.createElement('option');
+                option.value = kind;
+                option.textContent = `Kind ${kind} (Custom)`;
+                customKindsGroup.appendChild(option);
+            }
+            
+            if (customKindsGroup.children.length > 0) {
+                selector.appendChild(customKindsGroup);
+            }
+        }
+    },
+    
+    // Show relay info in the UI
+    showRelayInfo: function() {
+        if (typeof RelayWorld === 'undefined' || !RelayWorld.config) return;
+        
+        const content = `
+            <h3>Relay Configuration</h3>
+            <div class="relay-info">
+                <div class="relay-group">
+                    <h4>Game Relay</h4>
+                    <p>${RelayWorld.config.GAME_RELAY}</p>
+                    <small>All game events and player positions</small>
+                </div>
+                <div class="relay-group">
+                    <h4>Login Relay</h4>
+                    <p>${RelayWorld.config.LOGIN_RELAY}</p>
+                    <small>Default login and explorer relay</small>
+                </div>
+                <div class="relay-group">
+                    <h4>Active Explorer</h4>
+                    <p>${Nostr?.activeExplorerRelay || "None selected"}</p>
+                    <small>Current explorer relay providing content</small>
+                </div>
+            </div>
+        `;
+        
+        // Create modal to display info
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                ${content}
+                <button id="close-relay-info" class="pixel-button">Close</button>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add close button handler
+        document.getElementById('close-relay-info').addEventListener('click', () => {
+            modal.remove();
+        });
     },
     
     sendChatMessage: function() {
@@ -339,6 +502,16 @@ const UI = {
         document.getElementById('user-score').textContent = Utils.formatNumber(user.score || 0);
         document.getElementById('user-guild').textContent = user.guild || 'None';
         document.getElementById('user-faction').textContent = user.faction || 'None';
+        
+        // Add NPC indicator if applicable
+        const userTitle = document.getElementById('user-popup-name');
+        if (user.isNPC) {
+            userTitle.textContent += ' [NPC]';
+            userTitle.className = 'npc-user';
+        } else {
+            userTitle.className = '';
+        }
+        
         this.updateFollowButton(pubkey);
         this.updateUserNotes(pubkey);
         popup.classList.remove('hide');
@@ -375,7 +548,7 @@ const UI = {
                     Player.follows++;
                     Player.interactions++;
                     Player.score += 50;
-                    Nostr.publishScoreEvent();
+                    Nostr.publishPlayerStats();
                     this.updatePlayerProfile();
                 })
                 .catch(error => this.showToast(`Failed to follow: ${error.message}`, "error"));
@@ -622,6 +795,13 @@ const UI = {
             const name = document.createElement('div');
             name.className = 'leaderboard-name';
             name.textContent = user.profile?.name || Utils.formatPubkey(user.pubkey, { short: true });
+            
+            // Add NPC indicator if applicable
+            if (user.isNPC) {
+                name.textContent += ' [NPC]';
+                name.className += ' npc-user';
+            }
+            
             info.appendChild(name);
             const score = document.createElement('div');
             score.className = 'leaderboard-score';

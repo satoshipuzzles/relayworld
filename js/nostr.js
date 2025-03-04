@@ -4,10 +4,11 @@
  */
 
 const Nostr = {
-    // Relay connections
-    relays: new Set(),
-    relayConnections: new Map(),
-    activeRelay: null,
+    // Categorized relay connections
+    gameRelay: null,          // Single dedicated game relay
+    loginRelay: null,         // Login and default explorer relay
+    explorerRelays: new Map(), // Map of URL -> explorer relay connection
+    activeExplorerRelay: null, // Currently active explorer relay
     
     // User data
     users: new Map(), // Map of pubkey -> user data
@@ -75,14 +76,77 @@ const Nostr = {
         }
     },
     
+    // Connect to game relay
+    connectToGameRelay: async function() {
+        try {
+            const url = RelayWorld.config.GAME_RELAY;
+            console.log(`[Nostr] Connecting to game relay: ${url}`);
+            
+            this.gameRelay = await this.connectRelay(url);
+            console.log("[Nostr] Connected to game relay successfully");
+            
+            return this.gameRelay;
+        } catch (error) {
+            console.error("[Nostr] Failed to connect to game relay:", error);
+            throw error;
+        }
+    },
+    
+    // Connect to login relay
+    connectToLoginRelay: async function() {
+        try {
+            const url = RelayWorld.config.LOGIN_RELAY;
+            console.log(`[Nostr] Connecting to login relay: ${url}`);
+            
+            this.loginRelay = await this.connectRelay(url);
+            
+            // Also add it to explorer relays
+            this.explorerRelays.set(url, this.loginRelay);
+            this.activeExplorerRelay = url;
+            
+            console.log("[Nostr] Connected to login relay successfully");
+            
+            return this.loginRelay;
+        } catch (error) {
+            console.error("[Nostr] Failed to connect to login relay:", error);
+            throw error;
+        }
+    },
+    
+    // Connect to explorer relay
+    connectToExplorerRelay: async function(url) {
+        // Skip if it's already connected or it's the login relay
+        if (this.explorerRelays.has(url)) {
+            return this.explorerRelays.get(url);
+        }
+        
+        try {
+            console.log(`[Nostr] Connecting to explorer relay: ${url}`);
+            
+            const relay = await this.connectRelay(url);
+            this.explorerRelays.set(url, relay);
+            
+            console.log(`[Nostr] Connected to explorer relay: ${url}`);
+            return relay;
+        } catch (error) {
+            console.error(`[Nostr] Failed to connect to explorer relay ${url}:`, error);
+            throw error;
+        }
+    },
+    
     // Connect to a relay - Fixed using a direct WebSocket approach
     connectRelay: async function(url) {
         try {
             // Check if already connected
-            if (this.relayConnections.has(url) && 
-                this.relayConnections.get(url).readyState === WebSocket.OPEN) {
+            if (this.explorerRelays.has(url) && 
+                this.explorerRelays.get(url).socket?.readyState === WebSocket.OPEN) {
                 console.log(`[Nostr] Already connected to relay: ${url}`);
-                return this.relayConnections.get(url);
+                return this.explorerRelays.get(url);
+            }
+            
+            if (url === RelayWorld.config.GAME_RELAY && 
+                this.gameRelay?.socket?.readyState === WebSocket.OPEN) {
+                return this.gameRelay;
             }
             
             console.log(`[Nostr] Connecting to relay: ${url}`);
@@ -117,7 +181,12 @@ const Nostr = {
                         // Close method
                         close: () => {
                             ws.close();
-                            this.relayConnections.delete(url);
+                            if (url === RelayWorld.config.GAME_RELAY) {
+                                this.gameRelay = null;
+                            } else if (url === RelayWorld.config.LOGIN_RELAY) {
+                                this.loginRelay = null;
+                            }
+                            this.explorerRelays.delete(url);
                         }
                     };
                     
@@ -125,10 +194,6 @@ const Nostr = {
                     ws.onmessage = (event) => {
                         this.handleRelayMessage(url, event.data);
                     };
-                    
-                    // Store the relay connection
-                    this.relayConnections.set(url, relay);
-                    this.relays.add(url);
                     
                     resolve(relay);
                 };
@@ -141,8 +206,13 @@ const Nostr = {
                 
                 ws.onclose = () => {
                     console.log(`[Nostr] WebSocket closed for ${url}`);
-                    this.relayConnections.delete(url);
-                    this.relays.delete(url);
+                    
+                    if (url === RelayWorld.config.GAME_RELAY) {
+                        this.gameRelay = null;
+                    } else if (url === RelayWorld.config.LOGIN_RELAY) {
+                        this.loginRelay = null;
+                    }
+                    this.explorerRelays.delete(url);
                     
                     // Attempt to reconnect if game is still running
                     if (typeof Game !== 'undefined' && Game.running) {
@@ -265,7 +335,12 @@ const Nostr = {
         switch (type) {
             case 'EVENT':
                 const [subId, event] = rest;
-                this.handleEvent(event, subId, relayUrl);
+                // Route game events and explorer events differently
+                if (relayUrl === RelayWorld.config.GAME_RELAY) {
+                    this.handleGameEvent(event, subId);
+                } else {
+                    this.handleExplorerEvent(event, subId, relayUrl);
+                }
                 break;
                 
             case 'EOSE':
@@ -288,8 +363,8 @@ const Nostr = {
         }
     },
     
-    // Handle EVENT message
-    handleEvent: function(event, subId, relayUrl) {
+    // Handle game events (game relay)
+    handleGameEvent: function(event, subId) {
         if (!event || !event.pubkey) return;
         
         // Find subscription
@@ -301,8 +376,25 @@ const Nostr = {
             }
         }
         
-        // Process event based on kind
-        this.processEvent(event, relayUrl);
+        // Process game event
+        this.processGameEvent(event);
+    },
+    
+    // Handle explorer events (explorer relays)
+    handleExplorerEvent: function(event, subId, relayUrl) {
+        if (!event || !event.pubkey) return;
+        
+        // Find subscription
+        const sub = this.subscriptions.get(subId);
+        if (sub && sub.eventHandlers && sub.eventHandlers.length > 0) {
+            // Call event handlers
+            for (const handler of sub.eventHandlers) {
+                handler(event);
+            }
+        }
+        
+        // Process explorer event
+        this.processExplorerEvent(event, relayUrl);
     },
     
     // Handle EOSE (End of Stored Events) message
@@ -325,77 +417,272 @@ const Nostr = {
         }
     },
     
-    // Process event based on kind
-    processEvent: function(event, relayUrl) {
-        // Create user entry if not exists
-        if (!this.users.has(event.pubkey)) {
-            // Generate a semi-deterministic position for new users
-            let x = 1500, y = 1500; // Default to middle if CryptoJS not available
+    // Set active explorer relay
+    setActiveExplorerRelay: function(url) {
+        if (this.explorerRelays.has(url)) {
+            this.activeExplorerRelay = url;
+            console.log(`[Nostr] Set active explorer relay to ${url}`);
             
-            if (typeof CryptoJS !== 'undefined') {
-                const hash = CryptoJS.SHA256(event.pubkey).toString();
-                x = parseInt(hash.substring(0, 8), 16) % (Game?.world?.width || 3000);
-                y = parseInt(hash.substring(8, 16), 16) % (Game?.world?.height || 3000);
+            // Update UI
+            if (typeof UI !== 'undefined' && typeof UI.updateRelaySelector === 'function') {
+                UI.updateRelaySelector();
             }
             
-            this.users.set(event.pubkey, {
-                pubkey: event.pubkey,
-                profile: null,
-                x, y,
-                notes: [],
-                score: 0,
-                itemsCollected: 0,
-                questsCompleted: 0,
-                following: new Set(),
-                followers: new Set(),
-                lastSeen: Date.now(),
-                bobOffset: 0
-            });
+            // Fetch users and notes from active explorer relay
+            this.fetchUsersFromExplorerRelay();
+            
+            return true;
+        }
+        
+        return false;
+    },
+    
+    // Subscribe to game events on game relay
+    subscribeToGameEvents: function() {
+        if (!this.gameRelay) {
+            console.error("[Nostr] Game relay not connected");
+            return false;
+        }
+        
+        console.log("[Nostr] Subscribing to game events...");
+        
+        // Create a list of all game event kinds
+        const gameKinds = Object.values(RelayWorld.config.EVENT_KINDS);
+        
+        // Subscribe to all game events
+        const filters = [{ kinds: gameKinds }];
+        
+        try {
+            this.subscribe(this.gameRelay, filters, 
+                (event) => this.processGameEvent(event),
+                () => console.log("[Nostr] Game events subscription complete")
+            );
+            return true;
+        } catch (error) {
+            console.error("[Nostr] Failed to subscribe to game events:", error);
+            return false;
+        }
+    },
+    
+    // Subscribe to explorer content on active explorer relay
+    subscribeToExplorerContent: function() {
+        if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+            console.error("[Nostr] No active explorer relay");
+            return false;
+        }
+        
+        const relay = this.explorerRelays.get(this.activeExplorerRelay);
+        
+        console.log(`[Nostr] Subscribing to explorer content on ${this.activeExplorerRelay}...`);
+        
+        // Subscribe to standard Nostr content
+        const filters = [{ kinds: RelayWorld.config.EXPLORER_KINDS }];
+        
+        try {
+            this.subscribe(relay, filters, 
+                (event) => this.processExplorerEvent(event, this.activeExplorerRelay),
+                () => console.log(`[Nostr] Explorer content subscription complete for ${this.activeExplorerRelay}`)
+            );
+            
+            // Additionally, fetch user profiles and notes
+            this.fetchUsersFromExplorerRelay();
+            
+            return true;
+        } catch (error) {
+            console.error("[Nostr] Failed to subscribe to explorer content:", error);
+            return false;
+        }
+    },
+    
+    // Process game event
+    processGameEvent: function(event) {
+        // Handle based on kind
+        const kinds = RelayWorld.config.EVENT_KINDS;
+        
+        switch (event.kind) {
+            case kinds.POSITION:
+                this.handlePositionEvent(event);
+                break;
+            case kinds.STATS:
+                this.handleStatsEvent(event);
+                break;
+            case kinds.ITEM:
+                this.handleItemEvent(event);
+                break;
+            case kinds.QUEST:
+                this.handleQuestEvent(event);
+                break;
+            case kinds.INTERACTION:
+                this.handleInteractionEvent(event);
+                break;
+            case kinds.WEATHER:
+                this.handleWeatherEvent(event);
+                break;
+            case kinds.PORTAL:
+                this.handlePortalEvent(event);
+                break;
+            case kinds.TREASURE:
+                this.handleTreasureEvent(event);
+                break;
+            case kinds.TRADE:
+                this.handleTradeEvent(event);
+                break;
+            case kinds.VOICE:
+                this.handleVoiceEvent(event);
+                break;
+            default:
+                console.log(`[Nostr] Unhandled game event kind: ${event.kind}`);
+        }
+    },
+    
+    // Process explorer event
+    processExplorerEvent: function(event, relayUrl) {
+        // Create user entry if not exists (potential NPC)
+        if (!this.users.has(event.pubkey)) {
+            this.createNPC(event.pubkey);
         }
         
         const user = this.users.get(event.pubkey);
         
         // Process based on kind
         switch (event.kind) {
-            // Profile metadata (kind 0)
-            case 0:
+            case 0: // Profile metadata
                 this.handleProfileEvent(event, user);
                 break;
-                
-            // Regular note (kind 1)
-            case 1:
+            case 1: // Regular note
                 this.handleNoteEvent(event, user);
                 break;
-                
-            // Contacts/following list (kind 3)
-            case 3:
+            case 3: // Contacts/following list
                 this.handleContactsEvent(event, user);
                 break;
-                
-            // General-purpose chat messages (NIP-C7)
-            case 9:
+            case 9: // Chat messages
                 this.handleChatEvent(event, user);
                 break;
-                
-            // Encrypted direct messages (kind 4)
-            case 4:
+            case 4: // Direct messages
                 this.handleDirectMessageEvent(event, user);
                 break;
-                
-            // Long-form content (kind 30023)
-            case 30023:
+            case 30023: // Long-form content
                 this.handleLongFormEvent(event, user);
                 break;
-                
-            // Custom game events
-            case 30001: // Position updates
-                this.handlePositionEvent(event, user);
-                break;
-                
-            // Custom score events
-            case 30002:
-                this.handleScoreEvent(event, user);
-                break;
+        }
+    },
+    
+    // Create an NPC based on explorer relay author
+    createNPC: function(pubkey) {
+        if (this.users.has(pubkey)) return;
+        
+        // Generate a semi-deterministic position for NPCs
+        let x = 1500, y = 1500; // Default to middle if CryptoJS not available
+        
+        if (typeof CryptoJS !== 'undefined') {
+            const hash = CryptoJS.SHA256(pubkey).toString();
+            x = parseInt(hash.substring(0, 8), 16) % (Game?.world?.width || 3000);
+            y = parseInt(hash.substring(8, 16), 16) % (Game?.world?.height || 3000);
+        }
+        
+        this.users.set(pubkey, {
+            pubkey: pubkey,
+            profile: null,
+            x, y,
+            notes: [],
+            score: 0,
+            itemsCollected: 0,
+            questsCompleted: 0,
+            following: new Set(),
+            followers: new Set(),
+            lastSeen: Date.now(),
+            bobOffset: 0,
+            isNPC: true // Flag to identify NPCs vs live players
+        });
+        
+        // Fetch profile for this NPC
+        this.fetchUserProfile(pubkey);
+    },
+    
+    // Fetch users from active explorer relay
+    fetchUsersFromExplorerRelay: function() {
+        if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+            console.error("[Nostr] No active explorer relay");
+            return false;
+        }
+        
+        const relay = this.explorerRelays.get(this.activeExplorerRelay);
+        console.log(`[Nostr] Fetching users from ${this.activeExplorerRelay}...`);
+        
+        // Fetch unique authors of notes (kind 1)
+        const filters = [{ 
+            kinds: [1], 
+            limit: RelayWorld.config.NPC_LIMIT 
+        }];
+        
+        try {
+            this.subscribe(relay, filters, 
+                (event) => {
+                    // Create NPC for each unique author
+                    if (!this.users.has(event.pubkey)) {
+                        this.createNPC(event.pubkey);
+                    }
+                },
+                () => console.log(`[Nostr] Completed fetching users from ${this.activeExplorerRelay}`)
+            );
+            return true;
+        } catch (error) {
+            console.error("[Nostr] Failed to fetch users from explorer relay:", error);
+            return false;
+        }
+    },
+    
+    // Fetch profile for a user/NPC
+    fetchUserProfile: function(pubkey) {
+        if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+            return false;
+        }
+        
+        const relay = this.explorerRelays.get(this.activeExplorerRelay);
+        
+        // Fetch profile metadata (kind 0)
+        const filters = [{ 
+            kinds: [0], 
+            authors: [pubkey],
+            limit: 1
+        }];
+        
+        try {
+            this.subscribe(relay, filters, 
+                (event) => this.processExplorerEvent(event, this.activeExplorerRelay),
+                () => {} // No EOSE handler needed
+            );
+            return true;
+        } catch (error) {
+            console.error(`[Nostr] Failed to fetch profile for ${pubkey}:`, error);
+            return false;
+        }
+    },
+    
+    // Fetch notes for a user/NPC
+    fetchUserNotes: function(pubkey) {
+        if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+            return false;
+        }
+        
+        const relay = this.explorerRelays.get(this.activeExplorerRelay);
+        
+        // Fetch notes (kind 1)
+        const filters = [{ 
+            kinds: [1], 
+            authors: [pubkey],
+            limit: 20
+        }];
+        
+        try {
+            this.subscribe(relay, filters, 
+                (event) => this.processExplorerEvent(event, this.activeExplorerRelay),
+                () => {} // No EOSE handler needed
+            );
+            return true;
+        } catch (error) {
+            console.error(`[Nostr] Failed to fetch notes for ${pubkey}:`, error);
+            return false;
         }
     },
     
@@ -555,8 +842,31 @@ const Nostr = {
         this.handleNoteEvent(event, user);
     },
     
-    // Handle position update event (kind 30001)
-    handlePositionEvent: function(event, user) {
+    // Handle position event (420001)
+    handlePositionEvent: function(event) {
+        // Create user if not exists
+        if (!this.users.has(event.pubkey)) {
+            this.users.set(event.pubkey, {
+                pubkey: event.pubkey,
+                profile: null,
+                x: 0, y: 0,
+                notes: [],
+                score: 0,
+                itemsCollected: 0,
+                questsCompleted: 0,
+                following: new Set(),
+                followers: new Set(),
+                lastSeen: Date.now(),
+                bobOffset: 0,
+                isNPC: false // Live player, not an NPC
+            });
+            
+            // Try to fetch their profile
+            this.fetchUserProfile(event.pubkey);
+        }
+        
+        const user = this.users.get(event.pubkey);
+        
         try {
             const position = JSON.parse(event.content);
             
@@ -564,32 +874,45 @@ const Nostr = {
                 user.x = position.x;
                 user.y = position.y;
                 user.lastSeen = Date.now();
+                user.isNPC = false; // Mark as live player
             }
         } catch (error) {
             console.error(`[Nostr] Failed to parse position update:`, error);
         }
     },
     
-    // Handle score update event (kind 30002)
-    handleScoreEvent: function(event, user) {
+    // Handle stats event (420002)
+    handleStatsEvent: function(event) {
+        if (!this.users.has(event.pubkey)) {
+            // Create user if not exists but mark as not NPC
+            this.users.set(event.pubkey, {
+                pubkey: event.pubkey,
+                profile: null,
+                x: 0, y: 0,
+                notes: [],
+                score: 0,
+                itemsCollected: 0,
+                questsCompleted: 0,
+                following: new Set(),
+                followers: new Set(),
+                lastSeen: Date.now(),
+                bobOffset: 0,
+                isNPC: false // Live player, not an NPC
+            });
+        }
+        
+        const user = this.users.get(event.pubkey);
+        
         try {
-            const data = JSON.parse(event.content);
+            const stats = JSON.parse(event.content);
             
-            if (data.score !== undefined) {
-                user.score = data.score;
-            }
+            if (stats.score !== undefined) user.score = stats.score;
+            if (stats.itemsCollected !== undefined) user.itemsCollected = stats.itemsCollected;
+            if (stats.questsCompleted !== undefined) user.questsCompleted = stats.questsCompleted;
             
-            if (data.itemsCollected !== undefined) {
-                user.itemsCollected = data.itemsCollected;
-            }
-            
-            if (data.questsCompleted !== undefined) {
-                user.questsCompleted = data.questsCompleted;
-            }
-            
-            // Update player stats
-            if (typeof Player !== 'undefined' && user.pubkey === Player.pubkey && data.score !== undefined) {
-                Player.score = data.score;
+            // Update player stats if this is the current player
+            if (typeof Player !== 'undefined' && user.pubkey === Player.pubkey) {
+                if (stats.score !== undefined) Player.score = stats.score;
                 if (typeof UI !== 'undefined' && typeof UI.updatePlayerProfile === 'function') {
                     UI.updatePlayerProfile();
                 }
@@ -600,8 +923,86 @@ const Nostr = {
                 UI.updateLeaderboard();
             }
         } catch (error) {
-            console.error(`[Nostr] Failed to parse score update:`, error);
+            console.error(`[Nostr] Failed to parse stats update:`, error);
         }
+    },
+    
+    // Handle item event (420003)
+    handleItemEvent: function(event) {
+        // Implementation for item collection events
+        // Process tags to find item ID
+        const itemTag = event.tags.find(tag => tag[0] === 'i');
+        if (!itemTag || !itemTag[1]) return;
+        
+        const itemId = itemTag[1];
+        
+        // Handle the item collection - could trigger effects, update world state, etc.
+        console.log(`[Nostr] User ${event.pubkey.slice(0, 8)} collected item ${itemId}`);
+    },
+    
+    // Handle quest event (420004)
+    handleQuestEvent: function(event) {
+        // Implementation for quest events
+        const actionTag = event.tags.find(tag => tag[0] === 'a');
+        const questTag = event.tags.find(tag => tag[0] === 'q');
+        
+        if (!actionTag || !questTag) return;
+        
+        const action = actionTag[1];
+        const questId = questTag[1];
+        
+        console.log(`[Nostr] Quest ${action} - ${questId} by ${event.pubkey.slice(0, 8)}`);
+        
+        // Update game state based on quest action
+        if (typeof Game !== 'undefined' && Game.quests) {
+            // Handle quest progress updates
+        }
+    },
+    
+    // Handle interaction event (420005)
+    handleInteractionEvent: function(event) {
+        // Implementation for player interaction events
+    },
+    
+    // Handle weather event (420006)
+    handleWeatherEvent: function(event) {
+        try {
+            const data = JSON.parse(event.content);
+            
+            if (data.type && typeof Game !== 'undefined' && Game.weather) {
+                // Update weather in the game
+                Game.weather.current = data.type;
+                
+                // Update UI
+                if (typeof UI !== 'undefined' && typeof UI.updateWeatherEffects === 'function') {
+                    UI.updateWeatherEffects(data.type);
+                }
+                
+                console.log(`[Nostr] Weather changed to ${data.type}`);
+            }
+        } catch (error) {
+            console.error(`[Nostr] Failed to parse weather event:`, error);
+        }
+    },
+    
+    // Handle portal event (420007)
+    handlePortalEvent: function(event) {
+        // Implementation for portal/teleport events
+    },
+    
+    // Handle treasure event (420008)
+    handleTreasureEvent: function(event) {
+        // Implementation for treasure events
+    },
+    
+    // Handle trade event (420009)
+    handleTradeEvent: function(event) {
+        // Implementation for trade events
+    },
+    
+    // Handle voice event (420010)
+    handleVoiceEvent: function(event) {
+        // Implementation for voice chat events
     },
     
     // Sign an event
@@ -655,26 +1056,6 @@ const Nostr = {
         }
     },
     
-    // Publish an event to all connected relays
-    publishToAll: async function(event) {
-        try {
-            const signedEvent = await this.signEvent(event);
-            
-            const publishPromises = [];
-            for (const [url, relay] of this.relayConnections) {
-                if (relay.socket && relay.socket.readyState === WebSocket.OPEN) {
-                    publishPromises.push(relay.publish(signedEvent));
-                }
-            }
-            
-            await Promise.allSettled(publishPromises);
-            return signedEvent;
-        } catch (error) {
-            console.error(`[Nostr] Failed to publish event to all relays:`, error);
-            throw error;
-        }
-    },
-    
     // Subscribe to events from a relay
     subscribe: function(relay, filters, onEvent, onEOSE) {
         try {
@@ -694,161 +1075,217 @@ const Nostr = {
     
     // Close a relay connection
     closeRelay: function(url) {
-        const relay = this.relayConnections.get(url);
+        // Game relay
+        if (url === RelayWorld.config.GAME_RELAY && this.gameRelay) {
+            this.gameRelay.close();
+            this.gameRelay = null;
+            console.log(`[Nostr] Closed game relay connection`);
+            return;
+        }
+        
+        // Login relay (also an explorer relay)
+        if (url === RelayWorld.config.LOGIN_RELAY && this.loginRelay) {
+            this.loginRelay.close();
+            this.loginRelay = null;
+            this.explorerRelays.delete(url);
+            console.log(`[Nostr] Closed login relay connection`);
+            return;
+        }
+        
+        // Explorer relay
+        const relay = this.explorerRelays.get(url);
         if (relay) {
             relay.close();
-            this.relayConnections.delete(url);
-            this.relays.delete(url);
-            console.log(`[Nostr] Closed relay connection: ${url}`);
+            this.explorerRelays.delete(url);
+            console.log(`[Nostr] Closed explorer relay connection: ${url}`);
         }
     },
     
     // Close all relay connections
     closeAllRelays: function() {
-        for (const [url, relay] of this.relayConnections) {
+        // Close game relay
+        if (this.gameRelay) {
+            this.gameRelay.close();
+            this.gameRelay = null;
+        }
+        
+        // Close login relay
+        if (this.loginRelay) {
+            this.loginRelay.close();
+            this.loginRelay = null;
+        }
+        
+        // Close all explorer relays
+        for (const [url, relay] of this.explorerRelays) {
             relay.close();
         }
         
-        this.relayConnections.clear();
-        this.relays.clear();
+        this.explorerRelays.clear();
+        this.activeExplorerRelay = null;
+        
         console.log(`[Nostr] Closed all relay connections`);
     },
     
-    // Set active relay
-    setActiveRelay: function(url) {
-        if (this.relays.has(url)) {
-            this.activeRelay = url;
-            console.log(`[Nostr] Set active relay to ${url}`);
-            
-            // Update UI
-            if (typeof UI !== 'undefined' && typeof UI.updateRelaySelector === 'function') {
-                UI.updateRelaySelector();
-            }
-            
-            // Fetch events from active relay
-            this.fetchFromActiveRelay();
-            
-            return true;
-        }
+    // Publish player position update (420001)
+    publishPlayerPosition: function(x, y) {
+        if (typeof Player === 'undefined' || !Player.pubkey || !this.gameRelay) return;
         
-        return false;
+        const event = {
+            kind: RelayWorld.config.EVENT_KINDS.POSITION,
+            content: JSON.stringify({ x, y }),
+            tags: [
+                ["t", "position"],
+                ["t", "game"]
+            ],
+            created_at: Math.floor(Date.now() / 1000),
+            pubkey: Player.pubkey
+        };
+        
+        // Publish only to game relay
+        this.publishEvent(this.gameRelay, event).catch(error => {
+            console.error(`[Nostr] Failed to publish position:`, error);
+        });
     },
     
-    // Fetch events from active relay
-    fetchFromActiveRelay: function() {
-        const relay = this.relayConnections.get(this.activeRelay);
-        if (!relay) return;
+    // Publish player stats update (420002)
+    publishPlayerStats: function() {
+        if (typeof Player === 'undefined' || !Player.pubkey || !this.gameRelay) return;
         
-        // Subscribe to recent events
-        const since = Math.floor(Date.now() / 1000) - 3600; // Last hour
-        let subscribedKinds = [0, 1, 3, 4, 9, 30023];
+        const event = {
+            kind: RelayWorld.config.EVENT_KINDS.STATS,
+            content: JSON.stringify({
+                score: Player.score,
+                itemsCollected: Player.itemsCollected,
+                questsCompleted: Player.completedQuests.length
+            }),
+            tags: [
+                ["t", "stats"],
+                ["t", "game"]
+            ],
+            created_at: Math.floor(Date.now() / 1000),
+            pubkey: Player.pubkey
+        };
         
-        // Use Game's subscribed kinds if available
-        if (typeof Game !== 'undefined' && Game.subscribedKinds) {
-            subscribedKinds = Array.from(Game.subscribedKinds);
+        // Publish to game relay
+        this.publishEvent(this.gameRelay, event).catch(error => {
+            console.error(`[Nostr] Failed to publish stats:`, error);
+        });
+    },
+    
+    // Publish item collection event (420003)
+    publishItemCollection: function(itemId) {
+        if (typeof Player === 'undefined' || !Player.pubkey || !this.gameRelay) return;
+        
+        const event = {
+            kind: RelayWorld.config.EVENT_KINDS.ITEM,
+            content: JSON.stringify({ itemId }),
+            tags: [
+                ["t", "item"],
+                ["t", "game"],
+                ["i", itemId]
+            ],
+            created_at: Math.floor(Date.now() / 1000),
+            pubkey: Player.pubkey
+        };
+        
+        // Publish to game relay
+        this.publishEvent(this.gameRelay, event).catch(error => {
+            console.error(`[Nostr] Failed to publish item collection:`, error);
+        });
+    },
+    
+    // Publish quest event (420004)
+    publishQuestEvent: function(action, questId, reward) {
+        if (typeof Player === 'undefined' || !Player.pubkey || !this.gameRelay) return;
+        
+        const event = {
+            kind: RelayWorld.config.EVENT_KINDS.QUEST,
+            content: JSON.stringify({ 
+                action, 
+                questId,
+                reward: reward || 0
+            }),
+            tags: [
+                ["t", "quest"],
+                ["t", "game"],
+                ["q", questId],
+                ["a", action]
+            ],
+            created_at: Math.floor(Date.now() / 1000),
+            pubkey: Player.pubkey
+        };
+        
+        // Publish to game relay
+        this.publishEvent(this.gameRelay, event).catch(error => {
+            console.error(`[Nostr] Failed to publish quest event:`, error);
+        });
+    },
+    
+    // Publish chat message to explorer relay
+    publishChatMessage: function(message) {
+        if (typeof Player === 'undefined' || !Player.pubkey || !message) return false;
+        
+        // For chat, we publish to the active explorer relay
+        if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+            console.error("[Nostr] No active explorer relay for chat");
+            return false;
         }
         
-        const filters = [{
-            kinds: subscribedKinds,
-            since
-        }];
+        const relay = this.explorerRelays.get(this.activeExplorerRelay);
+        
+        const event = {
+            kind: 9, // Using NIP-C7 for chat
+            content: message,
+            tags: [
+                ["client", "relay-world"]
+            ],
+            created_at: Math.floor(Date.now() / 1000),
+            pubkey: Player.pubkey
+        };
+        
+        // Publish to active explorer relay
+        this.publishEvent(relay, event).catch(error => {
+            console.error(`[Nostr] Failed to publish chat:`, error);
+            if (typeof UI !== 'undefined' && typeof UI.showToast === 'function') {
+                UI.showToast("Failed to send message", "error");
+            }
+        });
+        
+        return true;
+    },
+    
+    // Publish a direct message
+    publishDirectMessage: async function(recipientPubkey, message) {
+        if (typeof Player === 'undefined' || !Player.pubkey || !recipientPubkey || !message) return false;
         
         try {
-            this.subscribe(relay, filters, 
-                (event) => this.processEvent(event, this.activeRelay),
-                () => console.log(`[Nostr] EOSE from ${this.activeRelay}`)
-            );
-        } catch (error) {
-            console.error(`[Nostr] Failed to fetch from active relay:`, error);
-        }
-    },
-    
-    // Load player profile
-    loadPlayerProfile: async function() {
-        try {
-            if (typeof Player === 'undefined' || !Player.pubkey) {
-                throw new Error("Player not initialized");
+            // Encrypt the message
+            const encrypted = await this.encryptMessage(recipientPubkey, message);
+            
+            const event = {
+                kind: 4,
+                content: encrypted,
+                tags: [['p', recipientPubkey]],
+                created_at: Math.floor(Date.now() / 1000),
+                pubkey: Player.pubkey
+            };
+            
+            // Publish to active explorer relay
+            if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+                console.error("[Nostr] No active explorer relay for direct messages");
+                return false;
             }
             
-            // Request profile from relays
-            const filters = [{ kinds: [0], authors: [Player.pubkey], limit: 1 }];
-            
-            for (const [url, relay] of this.relayConnections) {
-                try {
-                    this.subscribe(relay, filters, 
-                        (event) => this.processEvent(event, url),
-                        () => {} // EOSE handler
-                    );
-                } catch (error) {
-                    console.error(`[Nostr] Failed to subscribe to profile on ${url}:`, error);
-                }
-            }
-            
-            // Also request contacts
-            const contactsFilters = [{ kinds: [3], authors: [Player.pubkey], limit: 1 }];
-            
-            for (const [url, relay] of this.relayConnections) {
-                try {
-                    this.subscribe(relay, contactsFilters, 
-                        (event) => this.processEvent(event, url),
-                        () => {} // EOSE handler
-                    );
-                } catch (error) {
-                    console.error(`[Nostr] Failed to subscribe to contacts on ${url}:`, error);
-                }
-            }
-            
-            // Wait a bit for events to come in
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const relay = this.explorerRelays.get(this.activeExplorerRelay);
+            await this.publishEvent(relay, event);
             
             return true;
         } catch (error) {
-            console.error(`[Nostr] Failed to load player profile:`, error);
-            throw error;
-        }
-    },
-    
-    // Subscribe to profiles
-    subscribeToProfiles: function() {
-        for (const [url, relay] of this.relayConnections) {
-            // Subscribe to all profile updates
-            const filters = [{ kinds: [0], limit: 100 }];
-            
-            try {
-                this.subscribe(relay, filters, 
-                    (event) => this.processEvent(event, url),
-                    () => {} // EOSE handler
-                );
-            } catch (error) {
-                console.error(`[Nostr] Failed to subscribe to profiles on ${url}:`, error);
+            console.error(`[Nostr] Failed to publish direct message:`, error);
+            if (typeof UI !== 'undefined' && typeof UI.showToast === 'function') {
+                UI.showToast("Failed to send direct message", "error");
             }
-        }
-    },
-    
-    // Subscribe to notes and other events
-    subscribeToEvents: function() {
-        for (const [url, relay] of this.relayConnections) {
-            // Subscribe to all relevant events
-            let subscribedKinds = [0, 1, 3, 4, 9, 30023];
-            
-            // Use Game's subscribed kinds if available
-            if (typeof Game !== 'undefined' && Game.subscribedKinds) {
-                subscribedKinds = Array.from(Game.subscribedKinds);
-            }
-            
-            const filters = [{
-                kinds: subscribedKinds,
-                limit: 100
-            }];
-            
-            try {
-                this.subscribe(relay, filters, 
-                    (event) => this.processEvent(event, url),
-                    () => {} // EOSE handler
-                );
-            } catch (error) {
-                console.error(`[Nostr] Failed to subscribe to events on ${url}:`, error);
-            }
+            return false;
         }
     },
     
@@ -880,202 +1317,28 @@ const Nostr = {
         }
     },
     
-    // Publish a player position update
-    publishPlayerPosition: function(x, y) {
-        if (typeof Player === 'undefined' || !Player.pubkey) return;
-        
-        const event = {
-            kind: 30001,
-            content: JSON.stringify({ x, y }),
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: Player.pubkey
-        };
-        
-        // Publish to active relay only to reduce spam
-        const relay = this.relayConnections.get(this.activeRelay);
-        if (relay) {
-            this.publishEvent(relay, event).catch(error => {
-                console.error(`[Nostr] Failed to publish position:`, error);
-            });
-        }
-    },
-    
-    // Publish a chat message
-    publishChatMessage: function(message) {
-        if (typeof Player === 'undefined' || !Player.pubkey || !message) return false;
-        
-        const event = {
-            kind: 9, // Using NIP-C7 for chat
-            content: message,
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: Player.pubkey
-        };
-        
-        // Publish to all relays for chat
-        this.publishToAll(event).catch(error => {
-            console.error(`[Nostr] Failed to publish chat:`, error);
-            if (typeof UI !== 'undefined' && typeof UI.showToast === 'function') {
-                UI.showToast("Failed to send message", "error");
-            }
-        });
-        
-        return true;
-    },
-    
-    // Publish a direct message
-    publishDirectMessage: async function(recipientPubkey, message) {
-        if (typeof Player === 'undefined' || !Player.pubkey || !recipientPubkey || !message) return false;
-        
-        try {
-            // Encrypt the message
-            const encrypted = await this.encryptMessage(recipientPubkey, message);
-            
-            const event = {
-                kind: 4,
-                content: encrypted,
-                tags: [['p', recipientPubkey]],
-                created_at: Math.floor(Date.now() / 1000),
-                pubkey: Player.pubkey
-            };
-            
-            // Publish to all relays
-            await this.publishToAll(event);
-            
-            return true;
-        } catch (error) {
-            console.error(`[Nostr] Failed to publish direct message:`, error);
-            if (typeof UI !== 'undefined' && typeof UI.showToast === 'function') {
-                UI.showToast("Failed to send direct message", "error");
-            }
-            return false;
-        }
-    },
-    
-    // Publish a score update
-    publishScoreEvent: function() {
-        if (typeof Player === 'undefined' || !Player.pubkey) return;
-        
-        const event = {
-            kind: 30002,
-            content: JSON.stringify({
-                score: Player.score,
-                itemsCollected: Player.itemsCollected,
-                questsCompleted: Player.completedQuests.length
-            }),
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: Player.pubkey
-        };
-        
-        // Publish to all relays
-        this.publishToAll(event).catch(error => {
-            console.error(`[Nostr] Failed to publish score:`, error);
-        });
-    },
-    
-    // Publish an item collection event
-    publishItemCollectionEvent: function(itemId) {
-        if (typeof Player === 'undefined' || !Player.pubkey) return;
-        
-        const event = {
-            kind: 30003,
-            content: JSON.stringify({ itemId }),
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: Player.pubkey
-        };
-        
-        // Publish to active relay only
-        const relay = this.relayConnections.get(this.activeRelay);
-        if (relay) {
-            this.publishEvent(relay, event).catch(error => {
-                console.error(`[Nostr] Failed to publish item collection:`, error);
-            });
-        }
-    },
-    
-    // Publish a quest event
-    publishQuestEvent: function(action, questId, reward) {
-        if (typeof Player === 'undefined' || !Player.pubkey) return;
-        
-        const event = {
-            kind: 30004,
-            content: JSON.stringify({ 
-                action, 
-                questId,
-                reward: reward || 0
-            }),
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: Player.pubkey
-        };
-        
-        // Publish to all relays
-        this.publishToAll(event).catch(error => {
-            console.error(`[Nostr] Failed to publish quest event:`, error);
-        });
-    },
-    
-    // Publish a weather event
+    // Publish weather event
     publishWeatherEvent: function(weatherType) {
-        if (typeof Player === 'undefined' || !Player.pubkey) return;
+        if (typeof Player === 'undefined' || !Player.pubkey || !this.gameRelay) return;
         
         const event = {
-            kind: 30005,
+            kind: RelayWorld.config.EVENT_KINDS.WEATHER,
             content: JSON.stringify({ type: weatherType }),
-            tags: [],
+            tags: [
+                ["t", "weather"],
+                ["t", "game"]
+            ],
             created_at: Math.floor(Date.now() / 1000),
             pubkey: Player.pubkey
         };
         
-        // Publish to all relays
-        this.publishToAll(event).catch(error => {
+        // Publish to game relay
+        this.publishEvent(this.gameRelay, event).catch(error => {
             console.error(`[Nostr] Failed to publish weather event:`, error);
         });
     },
     
-    // Publish a portal event
-    publishPortalEvent: function(portalId) {
-        if (typeof Player === 'undefined' || !Player.pubkey) return;
-        
-        const event = {
-            kind: 30006,
-            content: JSON.stringify({ portalId }),
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: Player.pubkey
-        };
-        
-        // Publish to active relay only
-        const relay = this.relayConnections.get(this.activeRelay);
-        if (relay) {
-            this.publishEvent(relay, event).catch(error => {
-                console.error(`[Nostr] Failed to publish portal event:`, error);
-            });
-        }
-    },
-    
-    // Publish a treasure event
-    publishTreasureEvent: function(action, treasureId) {
-        if (typeof Player === 'undefined' || !Player.pubkey) return;
-        
-        const event = {
-            kind: 30007,
-            content: JSON.stringify({ action, treasureId }),
-            tags: [],
-            created_at: Math.floor(Date.now() / 1000),
-            pubkey: Player.pubkey
-        };
-        
-        // Publish to all relays
-        this.publishToAll(event).catch(error => {
-            console.error(`[Nostr] Failed to publish treasure event:`, error);
-        });
-    },
-    
-    // Follow a user
+    // Follow a user (publish to explorer relay)
     followUser: async function(pubkey) {
         if (typeof Player === 'undefined' || !Player.pubkey || !pubkey) return false;
         
@@ -1102,8 +1365,14 @@ const Nostr = {
                 pubkey: Player.pubkey
             };
             
-            // Publish to all relays
-            await this.publishToAll(event);
+            // Publish to active explorer relay
+            if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+                console.error("[Nostr] No active explorer relay for following users");
+                return false;
+            }
+            
+            const relay = this.explorerRelays.get(this.activeExplorerRelay);
+            await this.publishEvent(relay, event);
             
             // Update local state
             user.following = follows;
@@ -1125,7 +1394,7 @@ const Nostr = {
         }
     },
     
-    // Unfollow a user
+    // Unfollow a user (publish to explorer relay)
     unfollowUser: async function(pubkey) {
         if (typeof Player === 'undefined' || !Player.pubkey || !pubkey) return false;
         
@@ -1152,8 +1421,14 @@ const Nostr = {
                 pubkey: Player.pubkey
             };
             
-            // Publish to all relays
-            await this.publishToAll(event);
+            // Publish to active explorer relay
+            if (!this.activeExplorerRelay || !this.explorerRelays.has(this.activeExplorerRelay)) {
+                console.error("[Nostr] No active explorer relay for unfollowing users");
+                return false;
+            }
+            
+            const relay = this.explorerRelays.get(this.activeExplorerRelay);
+            await this.publishEvent(relay, event);
             
             // Update local state
             user.following = follows;
@@ -1219,6 +1494,43 @@ const Nostr = {
         nearby.sort((a, b) => a.distance - b.distance);
         
         return nearby;
+    },
+    
+    // Load player profile
+    loadPlayerProfile: async function() {
+        try {
+            if (typeof Player === 'undefined' || !Player.pubkey) {
+                throw new Error("Player not initialized");
+            }
+            
+            // Request profile from login relay
+            if (!this.loginRelay) {
+                throw new Error("Login relay not connected");
+            }
+            
+            const filters = [{ kinds: [0], authors: [Player.pubkey], limit: 1 }];
+            
+            this.subscribe(this.loginRelay, filters, 
+                (event) => this.processExplorerEvent(event, RelayWorld.config.LOGIN_RELAY),
+                () => {} // EOSE handler
+            );
+            
+            // Also request contacts
+            const contactsFilters = [{ kinds: [3], authors: [Player.pubkey], limit: 1 }];
+            
+            this.subscribe(this.loginRelay, contactsFilters, 
+                (event) => this.processExplorerEvent(event, RelayWorld.config.LOGIN_RELAY),
+                () => {} // EOSE handler
+            );
+            
+            // Wait a bit for events to come in
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            return true;
+        } catch (error) {
+            console.error(`[Nostr] Failed to load player profile:`, error);
+            throw error;
+        }
     }
 };
 

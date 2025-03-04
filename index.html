@@ -69,11 +69,20 @@
         <div id="top-bar" class="hide">
             <div id="score-display">Score: 0</div>
             <div id="game-controls">
-                <select id="relay-selector">
-                    <option value="wss://relay.damus.io">Damus Relay</option>
-                </select>
-                <input type="text" id="custom-relay-input" placeholder="wss://your-relay.com">
-                <button id="add-relay-button" class="pixel-button">Add Relay</button>
+                <div class="relay-controls">
+                    <div class="relay-group">
+                        <label for="relay-selector">Explorer Relay:</label>
+                        <select id="relay-selector">
+                            <option value="" disabled>Select Explorer Relay</option>
+                        </select>
+                        <button id="relay-info-button" class="icon-button" title="Relay Info">ℹ️</button>
+                    </div>
+                    <div class="custom-relay">
+                        <input type="text" id="custom-relay-input" placeholder="wss://your-relay.com">
+                        <button id="add-relay-button" class="pixel-button">Add Explorer</button>
+                    </div>
+                </div>
+                
                 <select id="kinds-selector">
                     <option value="1">Kind 1 (Notes)</option>
                 </select>
