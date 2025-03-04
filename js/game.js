@@ -126,7 +126,7 @@ const Game = {
         },
         
         checkProgress: function(quest) {
-            if (!typeof Player !== 'undefined') return 0;
+           if (typeof Player === 'undefined') return 0;
             
             switch(quest.type) {
                 case 'collect':
