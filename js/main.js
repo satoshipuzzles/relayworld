@@ -10,6 +10,7 @@ const RelayWorld = {
     config: {
         WORLD_SIZE: 3000,
         DEFAULT_RELAYS: [
+            "wss://relay.nostrfreaks.com",
             "wss://relay.damus.io",
             "wss://relay.nostr.band",
             "wss://nos.lol",
