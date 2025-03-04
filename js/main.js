@@ -9,17 +9,22 @@ const RelayWorld = {
     
     config: {
         WORLD_SIZE: 3000,
-        DEFAULT_RELAYS: [
-            "wss://relay.nostrfreaks.com",
+        GAME_RELAY: "wss://relay.nostrfreaks.com", // Dedicated game relay
+        EXPLORER_RELAYS: [
             "wss://relay.damus.io",
             "wss://relay.nostr.band",
             "wss://nos.lol",
             "wss://nostr.wine"
         ],
+        ACTIVE_EXPLORER_RELAY: null, // Current explorer relay being viewed
         VOICE_CHAT_RANGE: 300,
         INTERACTION_RANGE: 100,
         DEFAULT_KINDS: [0, 1, 3, 9, 30023],
-        ZAP_AMOUNTS: [21, 210, 2100, 21000]
+        ZAP_AMOUNTS: [21, 210, 2100, 21000],
+        NPC_LIMIT: 100, // Maximum number of NPCs to spawn from explorer relay
+        UPDATE_FREQUENCY: 200, // Milliseconds between position updates
+        SPAWN_REGION_SIZE: 300, // Size of spawn region
+        MAX_CACHED_NOTES: 50 // Max notes to cache per user
     },
     
     game: null,
@@ -41,8 +46,8 @@ const RelayWorld = {
             if (!window.Items) throw new Error("Items module not loaded");
             if (!window.UI) throw new Error("UI module not loaded");
             import('./js/game.js').then(module => {
-    window.Game = module.default;
-});
+                window.Game = module.default;
+            });
 
             window.Utils.init();
             window.Player.init();
@@ -193,7 +198,7 @@ const RelayWorld = {
             this.showNWCOption(); // Moved after startGame
             
             localStorage.setItem('relayworld_pubkey', pubkey);
-            localStorage.setItem('relayworld_relays', JSON.stringify([...this.nostr.relays]));
+            localStorage.setItem('relayworld_relays', JSON.stringify([...this.nostr.explorerRelays.keys()]));
             
         } catch (error) {
             console.error("[Relay World] Login failed:", error);
@@ -242,22 +247,31 @@ const RelayWorld = {
         try {
             if (!this.nostr) throw new Error("Nostr module not initialized");
             
-            for (const relayUrl of this.config.DEFAULT_RELAYS) {
+            // Connect to game relay first
+            try {
+                await this.nostr.connectToGameRelay();
+            } catch (error) {
+                console.error("[Relay World] Failed to connect to game relay:", error);
+                throw new Error("Failed to connect to game relay. This is required to play.");
+            }
+            
+            // Connect to explorer relays
+            let connectedExplorers = 0;
+            
+            for (const relayUrl of this.config.EXPLORER_RELAYS) {
                 try {
-                    await this.nostr.connectRelay(relayUrl);
+                    await this.nostr.connectToExplorerRelay(relayUrl);
+                    connectedExplorers++;
                 } catch (error) {
-                    console.warn(`[Relay World] Failed to connect to relay ${relayUrl}: ${error.message}`);
+                    console.warn(`[Relay World] Failed to connect to explorer relay ${relayUrl}: ${error.message}`);
                 }
             }
             
-            if (this.nostr.relays.size === 0) {
-                throw new Error("Failed to connect to any relays. Please check your internet connection and try again.");
+            if (connectedExplorers === 0) {
+                throw new Error("Failed to connect to any explorer relays. Please check your internet connection and try again.");
             }
             
-            const firstRelay = Array.from(this.nostr.relays)[0];
-            this.nostr.setActiveRelay(firstRelay);
-            
-            this.setLoginStatus(`Connected to ${this.nostr.relays.size} relays successfully!`);
+            this.setLoginStatus(`Connected to game relay and ${connectedExplorers} explorer relays successfully!`);
             return true;
             
         } catch (error) {
@@ -277,8 +291,14 @@ const RelayWorld = {
             
             if (this.audio) this.audio.init();
             if (this.zaps) this.zaps.initAfterLogin();
+            
+            // Subscribe to profiles and events from explorer relays
             this.nostr.subscribeToProfiles();
             this.nostr.subscribeToEvents();
+            
+            // Subscribe to game events from game relay
+            this.nostr.subscribeToGameEvents();
+            
             this.game.generateWorldItems();
             
             if (this.ui) {
