@@ -25,17 +25,15 @@ const ZapSystem = {
     // Add wallet button to player profile
     this.addWalletButton();
     
-    // Try to auto-connect to WebLN provider if available
-    this.checkWebLNProvider().then(connected => {
-      if (connected) {
-        console.log("[ZapSystem] Zap payment sent:", result);
-      return result;
-      
-    } catch (error) {
-      console.error("[ZapSystem] Failed to send zap payment:", error);
-      throw error;
+// Try to auto-connect to WebLN provider if available
+  this.checkWebLNProvider().then(connected => {
+    if (connected) {
+      console.log("[ZapSystem] Auto-connected to WebLN provider");
     }
-  },
+  });
+  
+  console.log("[ZapSystem] Initialized");
+},
   
   // Send a regular lightning payment (non-zap)
   sendRegularPayment: async function(lightningAddress, amount, message) {
