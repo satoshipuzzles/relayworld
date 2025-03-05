@@ -294,52 +294,88 @@
     <script src="https://cdn.jsdelivr.net/npm/@getalby/bitcoin-connect/dist/index.browser.js"></script>
     
     <!-- Game Scripts - Use dynamic imports for better module handling -->
-    <script type="module">
-        // Dynamically import all modules
-        Promise.all([
-            import('./js/utils.js'),
-            import('./js/player.js'),
-            import('./js/items.js'),
-            import('./js/nostr.js'),
-            import('./js/zaps.js'),
-            import('./js/audio.js'),
-            import('./js/ui.js'),
-            import('./js/game.js'),
-            import('./js/debug.js'),
-            import('./js/main.js'),
-            import('./js/relay-world-enhancements.js') // Added the new enhancements module
-        ]).then(([
-            Utils, Player, Items, Nostr, Zaps, Audio, UI, Game, Debug, RelayWorld, Enhancements
-        ]) => {
-            // Make modules globally available
-            window.Utils = Utils.default;
-            window.Player = Player.default;
-            window.Items = Items.default;
-            window.Nostr = Nostr.default;
-            window.Zaps = Zaps.default;
-            window.Audio = Audio.default;
-            window.UI = UI.default;
-            window.Game = Game.default;
-            window.Debug = Debug.default;
-            window.RelayWorld = RelayWorld.default;
-            window.RelayWorldEnhancements = Enhancements.default;
+ <script type="module">
+    // Dynamically import all modules
+    Promise.all([
+        import('./js/utils.js'),
+        import('./js/player.js'),
+        import('./js/items.js'),
+        import('./js/nostr.js'),
+        import('./js/zaps.js'),
+        import('./js/audio.js'),
+        import('./js/ui.js'),
+        import('./js/game.js'),
+        import('./js/debug.js'),
+        import('./js/main.js'),
+        // New enhancement modules - add these to your imports
+        import('./js/zap-system.js'),
+        import('./js/mobile-ux.js'),
+        import('./js/game-chat.js'),
+        import('./js/cornychat-integration.js'),
+        import('./js/building-system.js'),
+        import('./js/direct-messaging.js'),
+        import('./js/note-publisher.js'),
+        import('./js/improved-rendering.js')
+    ]).then(([
+        Utils, Player, Items, Nostr, Zaps, Audio, UI, Game, Debug, RelayWorld,
+        // New module imports
+        ZapSystem, MobileUX, GameChat, CornyChatIntegration, BuildingSystem, 
+        DirectMessaging, NotePublisher, ImprovedRendering
+    ]) => {
+        // Make modules globally available
+        window.Utils = Utils.default;
+        window.Player = Player.default;
+        window.Items = Items.default;
+        window.Nostr = Nostr.default;
+        window.Zaps = Zaps.default;
+        window.Audio = Audio.default;
+        window.UI = UI.default;
+        window.Game = Game.default;
+        window.Debug = Debug.default;
+        window.RelayWorld = RelayWorld.default;
+        
+        // Initialize enhancement modules
+        window.ZapSystem = ZapSystem.default;
+        window.MobileUX = MobileUX.default;
+        window.GameChat = GameChat.default;
+        window.CornyChatIntegration = CornyChatIntegration.default;
+        window.BuildingSystem = BuildingSystem.default;
+        window.DirectMessaging = DirectMessaging.default;
+        window.NotePublisher = NotePublisher.default;
+        window.ImprovedRendering = ImprovedRendering.default;
 
-            // Initialize the game
-            window.RelayWorld.init();
+        // Initialize the game
+        window.RelayWorld.init();
+        
+        // Initialize all enhancement modules
+        console.log("Initializing Relay World Enhancements...");
+        
+        // Setup sequence for initialization to manage dependencies
+        window.initEnhancements = function() {
+            // First core UI fixes
+            if (window.MobileUX && window.MobileUX.init) window.MobileUX.init();
+            if (window.ImprovedRendering && window.ImprovedRendering.init) window.ImprovedRendering.init();
             
-            // Wait for the game to fully initialize, then initialize the enhancements
-            setTimeout(() => {
-                if (window.RelayWorldEnhancements) {
-                    console.log("Initializing Relay World Enhancements...");
-                    window.RelayWorldEnhancements.init();
-                } else {
-                    console.error("RelayWorldEnhancements not found! Make sure the script is properly loaded.");
-                }
-            }, 2000); // 2 second delay to ensure game is fully initialized
-        }).catch(error => {
-            console.error('Failed to load modules:', error);
-            document.getElementById('login-status').textContent = 'Error loading game: ' + error.message;
-        });
-    </script>
+            // Then gameplay features
+            if (window.ZapSystem && window.ZapSystem.init) window.ZapSystem.init();
+            if (window.GameChat && window.GameChat.init) window.GameChat.init();
+            if (window.BuildingSystem && window.BuildingSystem.init) window.BuildingSystem.init();
+            
+            // Finally social features
+            if (window.DirectMessaging && window.DirectMessaging.init) window.DirectMessaging.init();
+            if (window.NotePublisher && window.NotePublisher.init) window.NotePublisher.init();
+            if (window.CornyChatIntegration && window.CornyChatIntegration.init) window.CornyChatIntegration.init();
+            
+            console.log("All enhancement modules initialized!");
+        };
+        
+        // Wait for the game to be fully loaded
+        setTimeout(window.initEnhancements, 2000);
+        
+    }).catch(error => {
+        console.error('Failed to load modules:', error);
+        document.getElementById('login-status').textContent = 'Error loading game: ' + error.message;
+    });
+</script>
 </body>
 </html>
