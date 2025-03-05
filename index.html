@@ -306,9 +306,10 @@
             import('./js/ui.js'),
             import('./js/game.js'),
             import('./js/debug.js'),
-            import('./js/main.js')
+            import('./js/main.js'),
+            import('./js/relay-world-enhancements.js') // Added the new enhancements module
         ]).then(([
-            Utils, Player, Items, Nostr, Zaps, Audio, UI, Game, Debug, RelayWorld
+            Utils, Player, Items, Nostr, Zaps, Audio, UI, Game, Debug, RelayWorld, Enhancements
         ]) => {
             // Make modules globally available
             window.Utils = Utils.default;
@@ -321,9 +322,20 @@
             window.Game = Game.default;
             window.Debug = Debug.default;
             window.RelayWorld = RelayWorld.default;
+            window.RelayWorldEnhancements = Enhancements.default;
 
             // Initialize the game
             window.RelayWorld.init();
+            
+            // Wait for the game to fully initialize, then initialize the enhancements
+            setTimeout(() => {
+                if (window.RelayWorldEnhancements) {
+                    console.log("Initializing Relay World Enhancements...");
+                    window.RelayWorldEnhancements.init();
+                } else {
+                    console.error("RelayWorldEnhancements not found! Make sure the script is properly loaded.");
+                }
+            }, 2000); // 2 second delay to ensure game is fully initialized
         }).catch(error => {
             console.error('Failed to load modules:', error);
             document.getElementById('login-status').textContent = 'Error loading game: ' + error.message;
