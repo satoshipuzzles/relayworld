@@ -308,14 +308,14 @@
         import('./js/debug.js'),
         import('./js/main.js'),
         // New enhancement modules - add these to your imports
-        //import('./js/zap-system.js'),
-        //import('./js/mobile-ux.js'),
-        //import('./js/game-chat.js'),
+        import('./js/zap-system.js'),
+        import('./js/mobile-ux.js'),
+        import('./js/game-chat.js'),
         import('./js/cornychat-integration.js'),
-        //import('./js/building-system.js'),
-        //import('./js/direct-messaging.js'),
-        //import('./js/note-publisher.js'),
-        //import('./js/improved-rendering.js')
+        import('./js/building-system.js'),
+        import('./js/direct-messaging.js'),
+        import('./js/note-publisher.js'),
+        import('./js/improved-rendering.js')
     ]).then(([
         Utils, Player, Items, Nostr, Zaps, Audio, UI, Game, Debug, RelayWorld,
         // New module imports
@@ -335,14 +335,14 @@
         window.RelayWorld = RelayWorld.default;
         
         // Initialize enhancement modules
-        //window.ZapSystem = ZapSystem.default;
-        //window.MobileUX = MobileUX.default;
-        //window.GameChat = GameChat.default;
-        //window.CornyChatIntegration = CornyChatIntegration.default;
-        //window.BuildingSystem = BuildingSystem.default;
-        //window.DirectMessaging = DirectMessaging.default;
-        //window.NotePublisher = NotePublisher.default;
-        //window.ImprovedRendering = ImprovedRendering.default;
+        window.ZapSystem = ZapSystem.default;
+        window.MobileUX = MobileUX.default;
+        window.GameChat = GameChat.default;
+        window.CornyChatIntegration = CornyChatIntegration.default;
+        window.BuildingSystem = BuildingSystem.default;
+        window.DirectMessaging = DirectMessaging.default;
+        window.NotePublisher = NotePublisher.default;
+        window.ImprovedRendering = ImprovedRendering.default;
 
         // Initialize the game
         window.RelayWorld.init();
