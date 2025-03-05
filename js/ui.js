@@ -118,10 +118,15 @@ const UI = {
         }
     },
     
-    setupEventListeners: function() {
-        document.getElementById('inventory-button').addEventListener('click', this.toggleInventory.bind(this));
-        document.getElementById('inventory-close').addEventListener('click', this.toggleInventory.bind(this));
-        
+   const inventoryButton = document.getElementById('inventory-button');
+if (inventoryButton) {
+    inventoryButton.addEventListener('click', this.toggleInventory.bind(this));
+}
+
+const inventoryClose = document.getElementById('inventory-close');
+if (inventoryClose) {
+    inventoryClose.addEventListener('click', this.toggleInventory.bind(this));
+}
         const chatInput = document.getElementById('chat-input');
         if (chatInput) {
             chatInput.addEventListener('keypress', (e) => {
