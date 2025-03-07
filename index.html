@@ -1,74 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relay World - A Nostr Adventure Game</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/game.css">
-    <link rel="stylesheet" href="css/ui.css">
-    <link rel="stylesheet" href="css/animations.css">
-    <link rel="stylesheet" href="css/enhancements.css">
-    <link rel="icon" type="image/png" href="assets/icons/favicon.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relay World 2.0 Complete</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="game-canvas" width="800" height="600"></canvas>
-        <div id="weather-overlay" class="weather-effect"></div>
+  <canvas id="gameCanvas"></canvas>
+  <div id="ui">
+    <p>Resources: <span id="wood">0</span> wood, <span id="stone">0</span> stone</p>
+    <p>Stats: Health <span id="health">100</span>, Energy <span id="energy">100</span></p>
+    <button id="buildWall">Wall (5 wood)</button>
+    <button id="buildHouse">House (10 wood, 5 stone)</button>
+    <button id="claimLand">Claim Land (1000 sats)</button>
+    <div id="zapUI">
+      <label for="zapAmount">Zap Amount (sats):</label>
+      <input type="range" id="zapAmount" min="1" max="1000" value="21">
+      <span id="zapValue">21</span>
+      <label for="zapRange">Range (px):</label>
+      <input type="range" id="zapRange" min="50" max="500" value="100">
+      <span id="zapRangeValue">100</span>
+      <button id="zapButton">Zap Nearest Player</button>
     </div>
-
-    <!-- UI Overlay -->
-    <div id="ui-container">
-        <!-- Login Screen -->
-        <div id="login-screen">
-            <div id="login-panel">
-                <div class="pixel-corner corner-tl"></div>
-                <div class="pixel-corner corner-tr"></div>
-                <div class="pixel-corner corner-bl"></div>
-                <div class="pixel-corner corner-br"></div>
-                <div class="triforce-container">
-                    <div class="triforce top"></div>
-                    <div class="triforce left"></div>
-                    <div class="triforce right"></div>
-                </div>
-                <h1>Relay World</h1>
-                <p>IT IS DANGEROUS TO GO ALONE! TAKE THIS...</p>
-                <p>A legendary adventure awaits! Explore the Nostr network in a vibrant 8-bit world.</p>
-                
-                <!-- Updated login options with clearer separation -->
-                <div id="login-options">
-                    <button id="login-button" class="primary-button">CONNECT WITH NOSTR</button>
-                    <div class="login-extras hide">
-                        <div class="separator">AFTER LOGGING IN</div>
-                        <button id="login-nwc" class="secondary-button">CONNECT LIGHTNING WALLET</button>
-                    </div>
-                </div>
-                
-                <div class="loader" id="login-loader"></div>
-                <div id="login-status"></div>
-                <div class="instructions">
-                    <h3>QUEST GUIDE</h3>
-                    <p><strong>MOVEMENT:</strong> WASD or Arrow Keys</p>
-                    <p><strong>INTERACT:</strong> E or Space near users</p>
-                    <p><strong>CHAT:</strong> Enter for global chat, V for voice</p>
-                    <p><strong>ZAP:</strong> Z to zap nearby players</p>
-                    <p><strong>GOAL:</strong> Explore, connect, and build your legend!</p>
-                </div>
-            </div>
-            <div class="sound-wave" id="sound-wave"></div>
-        </div>
-
-        <!-- [... rest of your UI components remain unchanged ...] -->
+    <div id="chatUI">
+      <div id="chatMessages" style="height: 100px; overflow-y: auto; border: 1px solid #ccc;"></div>
+      <input type="text" id="chatInput" placeholder="Type a message..." style="width: 200px;">
+      <button id="chatSend">Send</button>
     </div>
-
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
-    <script src="https://unpkg.com/simple-peer/simplepeer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@getalby/bitcoin-connect/dist/index.browser.js"></script>
-    
-    <!-- Replace with module loader script -->
-    <script type="module" src="js/module-loader.js"></script>
+    <div id="avatarUI">
+      <label for="avatarColor">Avatar Color:</label>
+      <select id="avatarColor">
+        <option value="blue">Blue</option>
+        <option value="red">Red</option>
+        <option value="yellow">Yellow</option>
+      </select>
+    </div>
+    <p id="status">WASD to move, R to gather, B for build mode</p>
+  </div>
+  <div id="userPopup" style="display: none; position: absolute; background: white; border: 1px solid #000; padding: 10px; max-width: 300px;">
+    <h3 id="userName"></h3>
+    <div id="userFeed" style="max-height: 150px; overflow-y: auto;"></div>
+    <button id="userTrade">Trade (1 wood for 1 stone)</button>
+    <button id="userClose">Close</button>
+  </div>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
