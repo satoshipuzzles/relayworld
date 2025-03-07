@@ -52,7 +52,7 @@ const config = (function() {
     const NPC_LIMIT = parseValue(getConfig('NPC_LIMIT', 500), 500);
     
     // Relay Configuration
-    const GAME_RELAY_URL = getConfig('GAME_RELAY_URL', 'wss://relay.damus.io');
+    const GAME_RELAY_URL = getConfig('GAME_RELAY_URL', 'wss://relay.nostrfreaks.com');
     const DEFAULT_RELAYS = parseArray(getConfig('DEFAULT_RELAYS', 'wss://relay.damus.io,wss://relay.snort.social'));
     
     // Resource Settings
