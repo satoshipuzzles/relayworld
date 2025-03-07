@@ -3,72 +3,182 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relay World - A Nostr Adventure Game</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <title>Relay World 2.0 - Nostr-Native Metaverse</title>
     <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/ui.css">
-    <link rel="stylesheet" href="css/animations.css">
-    <link rel="stylesheet" href="css/enhancements.css">
-    <link rel="icon" type="image/png" href="assets/icons/favicon.png">
+    <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
     <div id="game-container">
-        <canvas id="game-canvas" width="800" height="600"></canvas>
-        <div id="weather-overlay" class="weather-effect"></div>
-    </div>
-
-    <!-- UI Overlay -->
-    <div id="ui-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="overlay">
+            <div class="loading-content">
+                <h1>Relay World 2.0</h1>
+                <p>Loading Nostr-Native Metaverse...</p>
+                <div class="progress-bar">
+                    <div class="progress" id="loading-progress"></div>
+                </div>
+                <p id="loading-status">Connecting to relays...</p>
+            </div>
+        </div>
+        
         <!-- Login Screen -->
-        <div id="login-screen">
-            <div id="login-panel">
-                <div class="pixel-corner corner-tl"></div>
-                <div class="pixel-corner corner-tr"></div>
-                <div class="pixel-corner corner-bl"></div>
-                <div class="pixel-corner corner-br"></div>
-                <div class="triforce-container">
-                    <div class="triforce top"></div>
-                    <div class="triforce left"></div>
-                    <div class="triforce right"></div>
+        <div id="login-screen" class="overlay hidden">
+            <div class="login-content">
+                <h1>Welcome to Relay World 2.0</h1>
+                <p>Connect with your Nostr extension to join the metaverse</p>
+                <button id="login-button" class="primary-button">Connect with NIP-07</button>
+                <p id="login-error" class="error hidden"></p>
+            </div>
+        </div>
+        
+        <!-- Game UI Overlay -->
+        <div id="game-ui" class="hidden">
+            <!-- Resource Display -->
+            <div id="resource-display">
+                <div class="resource" id="wood-display">
+                    <span class="resource-icon">🪵</span>
+                    <span class="resource-count">0</span>
                 </div>
-                <h1>Relay World</h1>
-                <p>IT IS DANGEROUS TO GO ALONE! TAKE THIS...</p>
-                <p>A legendary adventure awaits! Explore the Nostr network in a vibrant 8-bit world.</p>
-                
-                <!-- Updated login options with clearer separation -->
-                <div id="login-options">
-                    <button id="login-button" class="primary-button">CONNECT WITH NOSTR</button>
-                    <div class="login-extras hide">
-                        <div class="separator">AFTER LOGGING IN</div>
-                        <button id="login-nwc" class="secondary-button">CONNECT LIGHTNING WALLET</button>
-                    </div>
+                <div class="resource" id="stone-display">
+                    <span class="resource-icon">🪨</span>
+                    <span class="resource-count">0</span>
                 </div>
-                
-                <div class="loader" id="login-loader"></div>
-                <div id="login-status"></div>
-                <div class="instructions">
-                    <h3>QUEST GUIDE</h3>
-                    <p><strong>MOVEMENT:</strong> WASD or Arrow Keys</p>
-                    <p><strong>INTERACT:</strong> E or Space near users</p>
-                    <p><strong>CHAT:</strong> Enter for global chat, V for voice</p>
-                    <p><strong>ZAP:</strong> Z to zap nearby players</p>
-                    <p><strong>GOAL:</strong> Explore, connect, and build your legend!</p>
+                <div class="resource" id="metal-display">
+                    <span class="resource-icon">⛏️</span>
+                    <span class="resource-count">0</span>
                 </div>
             </div>
-            <div class="sound-wave" id="sound-wave"></div>
+            
+            <!-- Action Buttons -->
+            <div id="action-buttons">
+                <button id="build-button">Build (B)</button>
+                <button id="inventory-button">Inventory (Tab)</button>
+                <button id="map-button">Map (M)</button>
+                <button id="guild-button">Guild (G)</button>
+            </div>
+            
+            <!-- Chat Interface -->
+            <div id="chat-container">
+                <div id="chat-messages"></div>
+                <div id="chat-input-container">
+                    <input type="text" id="chat-input" placeholder="Type a message...">
+                    <button id="send-button">Send</button>
+                </div>
+            </div>
+            
+            <!-- Player Info -->
+            <div id="player-info">
+                <div id="player-avatar"></div>
+                <div id="player-name"></div>
+            </div>
+            
+            <!-- Current Relay Info -->
+            <div id="relay-info">
+                <div id="current-relay"></div>
+                <button id="relay-menu-button">Change Relay</button>
+            </div>
+            
+            <!-- Notifications -->
+            <div id="notifications"></div>
         </div>
-
-        <!-- [... rest of your UI components remain unchanged ...] -->
+        
+        <!-- Building Interface (hidden by default) -->
+        <div id="building-interface" class="panel hidden">
+            <h2>Building Mode</h2>
+            <div id="blueprint-list"></div>
+            <div id="building-controls">
+                <button id="rotate-button">Rotate</button>
+                <button id="cancel-building">Cancel</button>
+            </div>
+        </div>
+        
+        <!-- Inventory Interface (hidden by default) -->
+        <div id="inventory-interface" class="panel hidden">
+            <h2>Inventory</h2>
+            <div id="inventory-items"></div>
+            <button id="close-inventory">Close</button>
+        </div>
+        
+        <!-- Map Interface (hidden by default) -->
+        <div id="map-interface" class="panel hidden">
+            <h2>World Map</h2>
+            <div id="map-canvas-container">
+                <canvas id="map-canvas"></canvas>
+            </div>
+            <div id="relay-list">
+                <h3>Connected Relays</h3>
+                <ul id="relay-list-items"></ul>
+                <div id="add-relay">
+                    <input type="text" id="new-relay-url" placeholder="wss://relay-url">
+                    <button id="add-relay-button">Add Relay</button>
+                </div>
+            </div>
+            <button id="close-map">Close</button>
+        </div>
+        
+        <!-- Guild Interface (hidden by default) -->
+        <div id="guild-interface" class="panel hidden">
+            <h2>Guild</h2>
+            <div id="guild-info">
+                <div id="guild-name"></div>
+                <div id="guild-members"></div>
+                <div id="guild-territory"></div>
+                <div id="guild-storage"></div>
+            </div>
+            <button id="close-guild">Close</button>
+        </div>
+        
+        <!-- Toast Container -->
+        <div id="toast-container"></div>
+        
+        <!-- Dialog Container -->
+        <div id="dialog-container" class="hidden">
+            <div id="dialog-content"></div>
+        </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
-    <script src="https://unpkg.com/simple-peer/simplepeer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@getalby/bitcoin-connect/dist/index.browser.js"></script>
+    <!-- Core configuration (must be first) -->
+    <script src="js/config.js"></script>
     
-    <!-- Replace with module loader script -->
-    <script type="module" src="js/module-loader.js"></script>
+    <!-- Utilities -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/utils/crypto.js"></script>
+    <script src="js/utils/debug.js"></script>
+    
+    <!-- Nostr Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/nostr-tools/lib/nostr.bundle.js"></script>
+    
+    <!-- Core Systems -->
+    <script src="js/game/physics.js"></script>
+    <script src="js/game/renderer.js"></script>
+    <script src="js/game/input.js"></script>
+    <script src="js/game/world.js"></script>
+    <script src="js/game/engine.js"></script>
+    
+    <!-- Nostr Integration -->
+    <script src="js/nostr/client.js"></script>
+    <script src="js/nostr/events.js"></script>
+    <script src="js/nostr/relays.js"></script>
+    
+    <!-- Game Systems -->
+    <script src="js/systems/player.js"></script>
+    <script src="js/systems/resources.js"></script>
+    <script src="js/systems/building.js"></script>
+    <script src="js/systems/guild.js"></script>
+    <script src="js/systems/lightning.js"></script>
+    <script src="js/systems/voice.js"></script>
+    
+    <!-- UI Elements -->
+    <script src="js/ui/interface.js"></script>
+    <script src="js/ui/inventory.js"></script>
+    <script src="js/ui/building-ui.js"></script>
+    <script src="js/ui/map.js"></script>
+    <script src="js/ui/chat.js"></script>
+    
+    <!-- Main Application (must be last) -->
+    <script src="js/main.js"></script>
 </body>
 </html>
