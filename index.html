@@ -140,26 +140,28 @@
         </div>
     </div>
 
-    <!-- Nostr Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/nostr-tools/lib/nostr.bundle.js"></script>
-    
-    <!-- Main Scripts -->
+    <!-- Core configuration (must be first) -->
     <script src="js/config.js"></script>
+    
+    <!-- Utilities -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/utils/crypto.js"></script>
     <script src="js/utils/debug.js"></script>
+    
+    <!-- Nostr Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/nostr-tools/lib/nostr.bundle.js"></script>
+    
+    <!-- Core Systems -->
+    <script src="js/game/physics.js"></script>
+    <script src="js/game/renderer.js"></script>
+    <script src="js/game/input.js"></script>
+    <script src="js/game/world.js"></script>
+    <script src="js/game/engine.js"></script>
     
     <!-- Nostr Integration -->
     <script src="js/nostr/client.js"></script>
     <script src="js/nostr/events.js"></script>
     <script src="js/nostr/relays.js"></script>
-    
-    <!-- Game Engine -->
-    <script src="js/game/renderer.js"></script>
-    <script src="js/game/physics.js"></script>
-    <script src="js/game/input.js"></script>
-    <script src="js/game/world.js"></script>
-    <script src="js/game/engine.js"></script>
     
     <!-- Game Systems -->
     <script src="js/systems/player.js"></script>
@@ -176,7 +178,7 @@
     <script src="js/ui/map.js"></script>
     <script src="js/ui/chat.js"></script>
     
-    <!-- Main Application -->
+    <!-- Main Application (must be last) -->
     <script src="js/main.js"></script>
 </body>
 </html>
