@@ -34,7 +34,8 @@ const config = (function() {
         
         // If default is a boolean, parse as boolean
         if (typeof defaultValue === 'boolean') {
-            return value.toLowerCase() === 'true';
+            // Make sure value is a string before calling toLowerCase
+            return typeof value === 'string' && value.toLowerCase() === 'true';
         }
         
         // Otherwise treat as string
@@ -52,7 +53,7 @@ const config = (function() {
     const NPC_LIMIT = parseValue(getConfig('NPC_LIMIT', 500), 500);
     
     // Relay Configuration
-    const GAME_RELAY_URL = getConfig('GAME_RELAY_URL', 'wss://relay.nostrfreaks.com');
+    const GAME_RELAY_URL = getConfig('GAME_RELAY_URL', 'wss://relay.damus.io');
     const DEFAULT_RELAYS = parseArray(getConfig('DEFAULT_RELAYS', 'wss://relay.damus.io,wss://relay.snort.social'));
     
     // Resource Settings
@@ -73,9 +74,9 @@ const config = (function() {
     const LAND_CLAIM_EXPIRY = parseValue(getConfig('LAND_CLAIM_EXPIRY', 30), 30); // days until expiry
     
     // Lightning Integration
-    const LNBITS_URL = getConfig('LNBITS_URL', 'https://1a96a66a73.d.voltageapp.io');
-    const LNBITS_API_KEY = getConfig('LNBITS_API_KEY', '15c3ddd048cf4e438827c335956081ba');
-    const LNBITS_WEBHOOK_URL = getConfig('LNBITS_WEBHOOK_URL', 'nostrfreaks.m.voltageapp.io');
+    const LNBITS_URL = getConfig('LNBITS_URL', '');
+    const LNBITS_API_KEY = getConfig('LNBITS_API_KEY', '');
+    const LNBITS_WEBHOOK_URL = getConfig('LNBITS_WEBHOOK_URL', '');
     
     // Voice Chat Settings
     const VOICE_CHAT_RANGE = parseValue(getConfig('VOICE_CHAT_RANGE', 300), 300); // range in world units
@@ -105,7 +106,7 @@ const config = (function() {
     const REGION_SIZE = 100; // Size of each region in world units
     
     // Debug mode
-    const DEBUG_MODE = parseValue(getConfig('DEBUG_MODE', false), false);
+    const DEBUG_MODE = parseValue(getConfig('DEBUG_MODE', true), true);
     
     // Export all configuration parameters
     return {
@@ -138,3 +139,6 @@ const config = (function() {
         DEBUG_MODE
     };
 })();
+
+// Make sure config is available globally
+window.config = config;
