@@ -3,46 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Relay World 2.0 Complete</title>
+  <title>Relay World 2.0</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-  <div id="ui">
-    <p>Resources: <span id="wood">0</span> wood, <span id="stone">0</span> stone</p>
-    <p>Stats: Health <span id="health">100</span>, Energy <span id="energy">100</span></p>
-    <button id="buildWall">Wall (5 wood)</button>
-    <button id="buildHouse">House (10 wood, 5 stone)</button>
-    <button id="claimLand">Claim Land (1000 sats)</button>
-    <div id="zapUI">
-      <label for="zapAmount">Zap Amount (sats):</label>
-      <input type="range" id="zapAmount" min="1" max="1000" value="21">
-      <span id="zapValue">21</span>
-      <label for="zapRange">Range (px):</label>
-      <input type="range" id="zapRange" min="50" max="500" value="100">
-      <span id="zapRangeValue">100</span>
-      <button id="zapButton">Zap Nearest Player</button>
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui">
+      <div id="statusBar">
+        <span id="status">WASD to move | Welcome to Relay World</span>
+      </div>
     </div>
-    <div id="chatUI">
-      <div id="chatMessages" style="height: 100px; overflow-y: auto; border: 1px solid #ccc;"></div>
-      <input type="text" id="chatInput" placeholder="Type a message..." style="width: 200px;">
-      <button id="chatSend">Send</button>
-    </div>
-    <div id="avatarUI">
-      <label for="avatarColor">Avatar Color:</label>
-      <select id="avatarColor">
-        <option value="blue">Blue</option>
-        <option value="red">Red</option>
-        <option value="yellow">Yellow</option>
-      </select>
-    </div>
-    <p id="status">WASD to move, R to gather, B for build mode</p>
   </div>
-  <div id="userPopup" style="display: none; position: absolute; background: white; border: 1px solid #000; padding: 10px; max-width: 300px;">
-    <h3 id="userName"></h3>
-    <div id="userFeed" style="max-height: 150px; overflow-y: auto;"></div>
-    <button id="userTrade">Trade (1 wood for 1 stone)</button>
-    <button id="userClose">Close</button>
+  <div id="loginOverlay" style="display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; text-align: center; padding-top: 20%;">
+    <div class="loginBox">
+      <h2>Login to Relay World</h2>
+      <button id="nostrLogin">Login with Nostr Extension</button>
+      <p>OR</p>
+      <input type="text" id="pubkeyInput" placeholder="Enter your Nostr pubkey" style="width: 300px; padding: 5px;">
+      <button id="manualLogin">Login Manually</button>
+      <p id="loginError" style="color: red;"></p>
+    </div>
   </div>
   <script type="module" src="main.js"></script>
 </body>
