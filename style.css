@@ -1,0 +1,50 @@
+body {
+  margin: 0;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+  background: #f0f0f0;
+}
+
+#gameCanvas {
+  border: 1px solid #000;
+  background: #87ceeb;
+}
+
+#ui {
+  margin-top: 10px;
+}
+
+button {
+  padding: 5px 10px;
+  margin: 0 5px;
+  cursor: pointer;
+}
+
+#zapUI, #chatUI, #avatarUI {
+  margin-top: 10px;
+}
+
+#zapAmount, #zapRange {
+  vertical-align: middle;
+}
+
+#zapValue, #zapRangeValue {
+  margin: 0 10px;
+}
+
+#status {
+  color: #333;
+}
+
+#userPopup {
+  z-index: 10;
+}
+
+#userFeed {
+  border: 1px solid #ccc;
+  padding: 5px;
+}
+
+#userTrade, #userClose {
+  margin: 5px;
+}
