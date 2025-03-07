@@ -73,9 +73,9 @@ const config = (function() {
     const LAND_CLAIM_EXPIRY = parseValue(getConfig('LAND_CLAIM_EXPIRY', 30), 30); // days until expiry
     
     // Lightning Integration
-    const LNBITS_URL = getConfig('LNBITS_URL', '');
-    const LNBITS_API_KEY = getConfig('LNBITS_API_KEY', '');
-    const LNBITS_WEBHOOK_URL = getConfig('LNBITS_WEBHOOK_URL', '');
+    const LNBITS_URL = getConfig('LNBITS_URL', 'https://1a96a66a73.d.voltageapp.io');
+    const LNBITS_API_KEY = getConfig('LNBITS_API_KEY', '15c3ddd048cf4e438827c335956081ba');
+    const LNBITS_WEBHOOK_URL = getConfig('LNBITS_WEBHOOK_URL', 'nostrfreaks.m.voltageapp.io');
     
     // Voice Chat Settings
     const VOICE_CHAT_RANGE = parseValue(getConfig('VOICE_CHAT_RANGE', 300), 300); // range in world units
