@@ -1,0 +1,87 @@
+/* Toast notifications for wallet connection */
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  max-width: 300px;
+}
+
+.toast {
+  background-color: var(--color-light);
+  color: var(--color-dark);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  animation: toast-slide-in 0.3s, toast-fade-out 0.5s 2.5s;
+  position: relative;
+  overflow: hidden;
+  border: 3px solid var(--color-dark);
+}
+
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 4px;
+  width: 100%;
+  background-color: var(--color-medium);
+}
+
+.toast.success {
+  background-color: var(--color-lighter);
+}
+
+.toast.success::before {
+  background-color: var(--color-success);
+}
+
+.toast.error {
+  background-color: #ffcccc;
+}
+
+.toast.error::before {
+  background-color: var(--color-danger);
+}
+
+.toast.info::before {
+  background-color: var(--color-blue);
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Wallet balance display */
+#wallet-balance-display {
+  position: fixed;
+  top: 60px;
+  right: 10px;
+  background-color: var(--color-light);
+  color: var(--color-dark);
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: bold;
+  border: 2px solid var(--color-dark);
+  z-index: 1000;
+}
