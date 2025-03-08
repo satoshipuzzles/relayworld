@@ -9,10 +9,13 @@
     <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/ui.css">
     <link rel="stylesheet" href="css/animations.css">
-    <!-- Add this new CSS file -->
+    <!-- Add these CSS files -->
     <link rel="stylesheet" href="css/login-fixes.css">
+    <link rel="stylesheet" href="css/wallet-toast.css">
     <link rel="icon" type="image/png" href="assets/icons/favicon.png">
     <meta name="description" content="Relay World: An interactive multiplayer game powered by Nostr protocol">
+    <!-- Add Bitcoin Connect Script -->
+    <script src="https://cdn.jsdelivr.net/npm/@getalby/bitcoin-connect@3.5.3/dist/index.browser.js"></script>
 </head>
 <body>
     <div id="game-container">
@@ -355,18 +358,21 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Wallet balance display -->
+        <div id="wallet-balance-display" class="hide"></div>
     </div>
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/nostr-tools/lib/nostr.bundle.js"></script>
     <script src="https://unpkg.com/simple-peer/simplepeer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@getalby/bitcoin-connect/dist/index.browser.js"></script>
     
     <!-- Game Scripts - Using ES modules -->
     <script type="module" src="js/main.js"></script>
     
-    <!-- Add this login fix script -->
+    <!-- Fix scripts -->
     <script src="js/login-fix.js"></script>
+    <script src="js/wallet-connection-fix.js"></script>
 </body>
 </html>
