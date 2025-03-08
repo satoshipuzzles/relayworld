@@ -1,0 +1,51 @@
+{
+  "name": "relay-world",
+  "version": "1.0.0",
+  "description": "A browser-based multiplayer game using the Nostr protocol",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint js/**/*.js"
+  },
+  "keywords": [
+    "nostr",
+    "game",
+    "multiplayer",
+    "javascript",
+    "nip-17",
+    "lightning",
+    "bitcoin"
+  ],
+  "author": "Relay World Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/relay-world-team/relay-world.git"
+  },
+  "bugs": {
+    "url": "https://github.com/relay-world-team/relay-world/issues"
+  },
+  "homepage": "https://relay-world.io",
+  "devDependencies": {
+    "eslint": "^8.41.0",
+    "serve": "^14.2.0"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "not dead",
+    "not ie 11"
+  ],
+  "private": false,
+  "contributors": [
+    "Satoshi_Puzzles"
+  ],
+  "funding": {
+    "type": "lightning",
+    "url": "lightning:relay-world@getalby.com"
+  }
+}

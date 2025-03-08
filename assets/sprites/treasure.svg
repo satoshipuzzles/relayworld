@@ -1,0 +1,8 @@
+<svg width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Chest Base -->
+  <rect x="16" y="24" width="32" height="24" fill="#8B4513" stroke="#000" stroke-width="2"/>
+  <!-- Lid -->
+  <path d="M 16 24 Q 32 10 48 24" fill="#A0522D" stroke="#000" stroke-width="2"/>
+  <!-- Gold Glow -->
+  <circle cx="32" cy="36" r="8" fill="yellow" opacity="0.7"/>
+</svg>

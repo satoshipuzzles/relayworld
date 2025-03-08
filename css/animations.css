@@ -1,0 +1,215 @@
+/* animations.css - Animation styles for Relay World */
+
+/* General Animations */
+@keyframes float {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-15px); }
+    60% { transform: translateY(-7px); }
+}
+
+/* Button and UI Animations */
+@keyframes sheen {
+    0% { transform: translateX(-100%) rotate(45deg); }
+    20% { transform: translateX(100%) rotate(45deg); }
+    100% { transform: translateX(100%) rotate(45deg); }
+}
+
+.shine-effect {
+    position: relative;
+    overflow: hidden;
+}
+
+.shine-effect::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        to bottom right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0) 40%,
+        rgba(255, 255, 255, 0.6) 50%,
+        rgba(255, 255, 255, 0) 60%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transform: rotate(45deg);
+    animation: sheen 3s forwards infinite;
+    pointer-events: none;
+}
+
+/* Notification and Feedback Animations */
+@keyframes toastFade {
+    0% { opacity: 0; transform: translateY(-20px); }
+    10% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-20px); }
+}
+
+@keyframes popIn {
+    0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes popOut {
+    0% { transform: scale(1); opacity: 1; }
+    30% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0); opacity: 0; }
+}
+
+.pop-in {
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.pop-out {
+    animation: popOut 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Game World Animations */
+@keyframes itemHover {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+    100% { transform: translateY(0); }
+}
+
+.item-hover {
+    animation: itemHover 2s ease-in-out infinite;
+}
+
+@keyframes playerBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
+.player-bob {
+    animation: playerBob 0.8s ease-in-out infinite;
+}
+
+/* Collectible Effect */
+@keyframes collectEffect {
+    0% { transform: scale(0.5) rotate(0deg); opacity: 1; }
+    100% { transform: scale(2) rotate(360deg); opacity: 0; }
+}
+
+/* NIP-17 Message Animations */
+@keyframes messageAppear {
+    0% { transform: translateY(10px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+.message-appear {
+    animation: messageAppear 0.3s ease-out forwards;
+}
+
+@keyframes encryptionPulse {
+    0% { box-shadow: 0 0 0 0 rgba(139, 172, 15, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(139, 172, 15, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(139, 172, 15, 0); }
+}
+
+.encryption-active {
+    animation: encryptionPulse 2s infinite;
+}
+
+/* Zap Effect Animations */
+@keyframes zapFlash {
+    0% { transform: scale(0.1); opacity: 1; }
+    25% { transform: scale(0.8); opacity: 0.9; }
+    50% { transform: scale(1.5); opacity: 0.8; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+.zap-effect {
+    animation: zapFlash 0.5s ease-out forwards;
+}
+
+@keyframes zapSuccess {
+    0% { background-color: var(--color-light); }
+    50% { background-color: var(--color-gold); }
+    100% { background-color: var(--color-light); }
+}
+
+.zap-success {
+    animation: zapSuccess 0.5s ease-out;
+}
+
+/* Voice Chat Animations */
+@keyframes voiceWave {
+    0% { transform: scale(1); opacity: 0.7; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+.voice-wave {
+    animation: voiceWave 2s ease-out infinite;
+}
+
+@keyframes voicePulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.voice-pulse {
+    animation: voicePulse 0.5s ease-in-out infinite;
+}
+
+/* Achievement Unlock Animation */
+@keyframes achievementUnlock {
+    0% { transform: translateX(100%); }
+    15% { transform: translateX(-10px); }
+    20% { transform: translateX(0); }
+    80% { transform: translateX(0); }
+    85% { transform: translateX(-10px); }
+    100% { transform: translateX(100%); }
+}
+
+.achievement-notification {
+    animation: achievementUnlock 5s ease-in-out forwards;
+}
+
+/* Guild Emblem Animation */
+@keyframes guildEmblemGlow {
+    0%, 100% { filter: drop-shadow(0 0 3px var(--color-gold)); }
+    50% { filter: drop-shadow(0 0 8px var(--color-gold)); }
+}
+
+.guild-emblem {
+    animation: guildEmblemGlow 3s ease-in-out infinite;
+}
+
+/* Responsive Animations */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

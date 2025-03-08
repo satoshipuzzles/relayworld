@@ -1,0 +1,8 @@
+<svg width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer Ring -->
+  <circle cx="32" cy="32" r="28" fill="none" stroke="#00CED1" stroke-width="4" stroke-dasharray="10"/>
+  <!-- Inner Swirl -->
+  <path d="M 32 32 Q 40 20 48 32 Q 40 44 32 32 Q 24 20 16 32 Q 24 44 32 32" fill="none" stroke="#9400D3" stroke-width="3"/>
+  <!-- Center -->
+  <circle cx="32" cy="32" r="5" fill="#9400D3"/>
+</svg>
