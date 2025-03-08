@@ -1,0 +1,97 @@
+/* login-animations.css */
+@keyframes float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes triforce-spin {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+@keyframes triforce-pulse {
+  0% { opacity: 0.8; }
+  100% { opacity: 1; filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.9)); }
+}
+
+@keyframes sound-wave {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+
+/* Login panel animation */
+#login-panel {
+  animation: float 3s ease-in-out infinite;
+  background-color: var(--color-light);
+  border: 8px solid var(--color-medium);
+  padding: 24px;
+  max-width: 90%;
+  width: 500px;
+  box-shadow: 0 0 0 4px var(--color-dark), 8px 8px 0 0 rgba(0,0,0,0.5);
+  position: relative;
+}
+
+/* Triforce animations */
+.triforce-container {
+  margin: 0 auto 20px;
+  width: 120px;
+  height: 120px;
+  position: relative;
+  animation: triforce-spin 10s linear infinite;
+  transform-style: preserve-3d;
+}
+
+.triforce {
+  width: 0;
+  height: 0;
+  border-left: 30px solid transparent;
+  border-right: 30px solid transparent;
+  border-bottom: 52px solid var(--color-gold);
+  position: absolute;
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.7));
+  animation: triforce-pulse 2s ease-in-out infinite alternate;
+}
+
+.triforce.top { top: 0; left: 30px; }
+.triforce.left { top: 52px; left: 0; }
+.triforce.right { top: 52px; left: 60px; }
+
+/* Sound wave animation */
+.sound-wave {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--color-gold);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Login screen styling */
+#login-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-dark);
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23306230' fill-opacity='0.4' fill-rule='evenodd'%3E%3Cpath d='M0 0h20v20H0V0zm20 20h20v20H20V20z'/%3E%3C/g%3E%3C/svg%3E");
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  pointer-events: all;
+  z-index: 100;
+}
+
+/* Guest login button styling */
+#guest-login-button {
+  margin-top: 10px;
+  background-color: var(--color-medium);
+  color: var(--color-very-light);
+}
