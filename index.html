@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/ui.css">
     <link rel="stylesheet" href="css/animations.css">
-    <!-- Add the new CSS files -->
+    <!-- Add the fix CSS files -->
     <link rel="stylesheet" href="css/login-animations.css">
     <link rel="stylesheet" href="css/fix.css">
     <link rel="icon" type="image/png" href="assets/icons/favicon.png">
@@ -38,11 +38,12 @@
                 </div>
                 <h1>Relay World</h1>
                 <p>EMBARK ON A NOSTR ADVENTURE</p>
-                <p>A digital adventure awaits! Explore the Nostr network in a vibrant 8-bit world.</p>
+                <p>A digital adventure awaits! Explore the Nostr network in a vibrant 3D world.</p>
                 
                 <!-- Login options -->
                 <div id="login-options">
                     <button id="login-button" class="primary-button">CONNECT WITH NOSTR</button>
+                    <button id="guest-login-button" class="secondary-button">PLAY AS GUEST</button>
                     <div class="login-extras hide">
                         <div class="separator">AFTER LOGGING IN</div>
                         <button id="login-nwc" class="secondary-button">CONNECT LIGHTNING WALLET</button>
@@ -106,38 +107,6 @@
             </div>
         </div>
 
-        <!-- Leaderboard -->
-        <div id="leaderboard-container" class="hide">
-            <h3>Leaderboard</h3>
-            <select id="leaderboard-type">
-                <option value="score">Score</option>
-                <option value="items">Items</option>
-                <option value="quests">Quests</option>
-            </select>
-            <div id="leaderboard-entries"></div>
-        </div>
-
-        <!-- User Popup -->
-        <div id="user-popup" class="hide" data-pubkey="">
-            <div id="user-popup-header">
-                <img id="user-popup-image" src="/api/placeholder/50/50" alt="User">
-                <div id="user-popup-details">
-                    <div id="user-popup-name">Loading...</div>
-                    <div id="user-popup-npub">Loading...</div>
-                </div>
-                <button id="user-popup-close">×</button>
-            </div>
-            <div id="user-popup-actions">
-                <button class="user-popup-button" id="follow-button">Follow</button>
-                <button class="user-popup-button" id="chat-button">Chat</button>
-                <button class="user-popup-button" id="trade-button">Trade</button>
-            </div>
-            <div id="user-notes-container">
-                <h4>Recent Notes</h4>
-                <div id="user-notes"></div>
-            </div>
-        </div>
-
         <!-- Chat Container -->
         <div id="chat-container" class="hide">
             <div id="chat-messages"></div>
@@ -161,6 +130,7 @@
 
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     
     <!-- Core scripts (in the proper order) -->
     <script src="js/core/event-bus.js" type="module"></script>
@@ -176,7 +146,102 @@
     <!-- Main application -->
     <script src="js/main.js" type="module"></script>
     
-    <!-- The proper login script instead of bypass scripts -->
+    <!-- Enhanced login script with guest support -->
     <script src="js/proper-login.js"></script>
+    
+    <!-- 3D game enhancement with ostrich characters -->
+    <script src="js/relay-world-3d.js"></script>
+
+    <script>
+    // Helper script to ensure 3D mode is activated
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add event listeners for login buttons
+        const loginButton = document.getElementById('login-button');
+        const guestLoginButton = document.getElementById('guest-login-button');
+        
+        if (loginButton) {
+            const originalClick = loginButton.onclick;
+            loginButton.onclick = function(e) {
+                // Show loading message
+                const loginStatus = document.getElementById('login-status');
+                if (loginStatus) loginStatus.textContent = 'Initializing 3D world...';
+                
+                // Call original handler if it exists
+                if (typeof originalClick === 'function') {
+                    originalClick.call(this, e);
+                }
+                
+                // Force 3D mode activation after a delay
+                setTimeout(() => {
+                    if (window.RelayWorld3D && !window.RelayWorld3D.initialized) {
+                        window.RelayWorld3D.init();
+                    }
+                }, 2000);
+            };
+        }
+        
+        if (guestLoginButton) {
+            const originalClick = guestLoginButton.onclick;
+            guestLoginButton.onclick = function(e) {
+                // Show loading message
+                const loginStatus = document.getElementById('login-status');
+                if (loginStatus) loginStatus.textContent = 'Creating guest account for 3D world...';
+                
+                // Call original handler if it exists
+                if (typeof originalClick === 'function') {
+                    originalClick.call(this, e);
+                }
+                
+                // Create a demo user and hide login screen
+                setTimeout(() => {
+                    const loginScreen = document.getElementById('login-screen');
+                    if (loginScreen) loginScreen.classList.add('hide');
+                    
+                    // Initialize 3D engine directly
+                    if (window.RelayWorld3D) {
+                        if (!window.RelayWorld3D.initialized) {
+                            window.RelayWorld3D.init().then(() => {
+                                window.RelayWorld3D.createOstrich("guest", { name: "Guest" });
+                                window.RelayWorld3D.spawnRandomCollectibles(30);
+                            });
+                        } else {
+                            window.RelayWorld3D.createOstrich("guest", { name: "Guest" });
+                        }
+                    }
+                    
+                    // Show UI elements
+                    document.getElementById('top-bar')?.classList.remove('hide');
+                    document.getElementById('chat-container')?.classList.remove('hide');
+                    document.getElementById('player-profile')?.classList.remove('hide');
+                }, 1000);
+            };
+        }
+        
+        // Add fallback if 3D engine fails to load
+        setTimeout(() => {
+            if (!window.RelayWorld3D || !window.RelayWorld3D.initialized) {
+                console.log("Attempting to initialize 3D engine after timeout...");
+                
+                // Load Three.js if not already loaded
+                if (typeof THREE === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js';
+                    script.onload = function() {
+                        // Initialize 3D engine once Three.js is loaded
+                        if (window.RelayWorld3D) {
+                            window.RelayWorld3D.init();
+                        } else {
+                            console.error("3D engine not found!");
+                        }
+                    };
+                    document.head.appendChild(script);
+                } else if (window.RelayWorld3D) {
+                    // Three.js is loaded, but 3D engine didn't initialize
+                    window.RelayWorld3D.init();
+                }
+            }
+        }, 5000);
+    });
+    </script>
 </body>
 </html>
