@@ -4,35 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relay World - A Nostr Adventure Game</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     
-    <!-- Fix for module loading issues - Add these first -->
-    <script src="js/module-fix.js"></script>
+    <!-- Simple fix for export/import errors -->
     <script>
-    // Prevent loading errors by providing global CryptoUtils first
-    window.CryptoUtils = {
-      randomId: function(prefix) {
-        return (prefix || '') + Date.now() + "_" + Math.random().toString(36).substring(2);
-      },
-      randomHex: function(length) {
-        var len = length || 64;
-        var result = "";
-        for (var i = 0; i < len / 2; i++) {
-          result += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
-        }
-        return result;
-      },
-      sha256: function(message) {
-        if (window.CryptoJS && window.CryptoJS.SHA256) {
-          return Promise.resolve(CryptoJS.SHA256(message).toString());
-        }
-        return Promise.resolve("simulated_hash_" + Math.random().toString(36).substring(2));
-      },
-      generateSharedSecret: function() {
-        return "shared_secret_" + Math.random().toString(36).substring(2);
-      }
-    };
+    // Prevent errors from import/export statements
+    window.exports = {};
+    window.module = { exports: {} };
     </script>
+    
+    <!-- Load essential libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    
+    <!-- Load fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     
     <!-- Base CSS files -->
     <link rel="stylesheet" href="css/main.css">
@@ -40,19 +25,9 @@
     <link rel="stylesheet" href="css/ui.css">
     <link rel="stylesheet" href="css/animations.css">
     
-    <!-- New fixed CSS -->
-    <link rel="stylesheet" href="css/login-style-fixes.css">
-    
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/icons/favicon.png">
     <meta name="description" content="Relay World: An interactive multiplayer game powered by Nostr protocol">
-    
-    <!-- Preload essential libraries to avoid errors -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    
-    <!-- Improved login script (add this before other game scripts) -->
-    <script src="js/improved-login.js"></script>
 </head>
 <body>
     <div id="game-container">
@@ -177,6 +152,20 @@
         <div id="toast-container"></div>
     </div>
 
+    <!-- Core scripts -->
+    <script src="js/core/event-bus.js"></script>
+    <script src="js/core/config.js"></script>
+    <script src="js/core/relay-world-core.js"></script>
+    
+    <!-- Utility scripts -->
+    <script src="js/utils/utils.js"></script>
+    <script src="js/utils/crypto-utils.js"></script>
+    <script src="js/utils/nostr-utils.js"></script>
+    <script src="js/utils/debug.js"></script>
+    
+    <!-- Main application script -->
+    <script src="js/main.js"></script>
+    
     <!-- 3D Engine Script -->
     <script src="js/relay-world-3d.js"></script>
 </body>
