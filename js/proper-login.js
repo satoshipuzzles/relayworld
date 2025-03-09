@@ -1,316 +1,580 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relay World - A Nostr Adventure Game</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <!-- Base CSS files -->
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/game.css">
-    <link rel="stylesheet" href="css/ui.css">
-    <link rel="stylesheet" href="css/animations.css">
-    <!-- Fix CSS files -->
-    <link rel="stylesheet" href="css/login-animations.css">
-    <link rel="stylesheet" href="css/fix.css">
-    <link rel="icon" type="image/png" href="assets/icons/favicon.png">
-    <meta name="description" content="Relay World: An interactive multiplayer game powered by Nostr protocol">
+/**
+ * proper-login.js
+ * Enhanced login script with guest support and profile data handling
+ */
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Apply styling fixes
+  fixLoginStyles();
+  
+  // Fix the CryptoUtils error by preloading CryptoJS if it's not already available
+  if (typeof CryptoJS === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
+    document.head.appendChild(script);
+  }
+  
+  // Check and ensure there's only one guest login button
+  const existingGuestButton = document.getElementById('guest-login-button');
+  const loginButton = document.getElementById('login-button');
+  
+  if (!existingGuestButton && loginButton && loginButton.parentNode) {
+    // Create guest login button only if it doesn't exist
+    const guestLoginButton = document.createElement('button');
+    guestLoginButton.id = 'guest-login-button';
+    guestLoginButton.className = 'secondary-button';
+    guestLoginButton.textContent = 'PLAY AS GUEST';
     
-    <style>
-        /* Inline emergency fixes */
-        #login-screen {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            display: flex !important;
-            justify-content: center !important;
-            align-items: center !important;
-            z-index: 9999 !important;
-            background-color: var(--color-dark) !important;
-        }
-        
-        #login-panel {
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            animation: float 3s ease-in-out infinite !important;
-            max-width: 90% !important;
-            width: 500px !important;
-        }
-        
-        .triforce-container {
-            animation: triforce-spin 10s linear infinite !important;
-        }
-        
-        .triforce {
-            animation: triforce-pulse 2s ease-in-out infinite alternate !important;
-        }
-        
-        .sound-wave {
-            animation: sound-wave 4s ease-out infinite !important;
-        }
-        
-        @keyframes float {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0); }
-        }
-        
-        @keyframes triforce-spin {
-            0% { transform: rotateY(0deg); }
-            100% { transform: rotateY(360deg); }
-        }
-        
-        @keyframes triforce-pulse {
-            0% { opacity: 0.8; }
-            100% { opacity: 1; filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.9)); }
-        }
-        
-        @keyframes sound-wave {
-            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
-        }
-        
-        /* Toast message styling */
-        #toast-container {
-            position: fixed !important;
-            top: 20px !important;
-            right: 20px !important;
-            z-index: 9999 !important;
-        }
-        
-        .toast {
-            background-color: var(--color-light) !important;
-            color: var(--color-dark) !important;
-            padding: 12px !important;
-            margin-bottom: 10px !important;
-            border-radius: 4px !important;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
-            border: 2px solid var(--color-dark) !important;
-            animation: toast-in 0.3s, toast-out 0.3s 2.7s !important;
-        }
-        
-        .toast.success {
-            border-left: 4px solid var(--color-success) !important;
-        }
-        
-        .toast.error {
-            border-left: 4px solid var(--color-danger) !important;
-        }
-        
-        @keyframes toast-in {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        
-        @keyframes toast-out {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-    </style>
-</head>
-<body>
-    <div id="game-container">
-        <canvas id="game-canvas"></canvas>
-        <div id="weather-overlay" class="weather-effect"></div>
-    </div>
-
-    <!-- UI Overlay -->
-    <div id="ui-container">
-        <!-- Login Screen -->
-        <div id="login-screen">
-            <div id="login-panel">
-                <div class="pixel-corner corner-tl"></div>
-                <div class="pixel-corner corner-tr"></div>
-                <div class="pixel-corner corner-bl"></div>
-                <div class="pixel-corner corner-br"></div>
-                <div class="triforce-container">
-                    <div class="triforce top"></div>
-                    <div class="triforce left"></div>
-                    <div class="triforce right"></div>
-                </div>
-                <h1>Relay World</h1>
-                <p>EMBARK ON A NOSTR ADVENTURE</p>
-                <p>A digital adventure awaits! Explore the Nostr network in a vibrant 3D world.</p>
-                
-                <!-- Login options -->
-                <div id="login-options">
-                    <button id="login-button" class="primary-button">CONNECT WITH NOSTR</button>
-                    <!-- Guest login button will be added by JS if it doesn't exist -->
-                    <div class="login-extras hide">
-                        <div class="separator">AFTER LOGGING IN</div>
-                        <button id="login-nwc" class="secondary-button">CONNECT LIGHTNING WALLET</button>
-                    </div>
-                </div>
-                
-                <div class="loader hide" id="login-loader"></div>
-                <div id="login-status"></div>
-                <div class="instructions">
-                    <h3>QUEST GUIDE</h3>
-                    <p><strong>MOVEMENT:</strong> WASD or Arrow Keys</p>
-                    <p><strong>INTERACT:</strong> E or Space near users</p>
-                    <p><strong>CHAT:</strong> Enter for global chat, V for voice</p>
-                    <p><strong>ZAP:</strong> Z to zap nearby players</p>
-                    <p><strong>GOAL:</strong> Explore, connect, and build your legend!</p>
-                </div>
-            </div>
-            <div class="sound-wave" id="sound-wave"></div>
-        </div>
-
-        <!-- Loading Indicator -->
-        <div id="loading-indicator" class="hide">
-            <h3>Loading Relay World</h3>
-            <div class="spinner"></div>
-            <p id="loading-status">Connecting to relay...</p>
-        </div>
-
-        <!-- Top Bar -->
-        <div id="top-bar" class="hide">
-            <div id="score-display">Score: 0</div>
-            <div id="game-controls">
-                <div class="relay-controls">
-                    <div class="relay-group">
-                        <label for="relay-selector">Explorer Relay:</label>
-                        <select id="relay-selector">
-                            <option value="wss://relay.damus.io">relay.damus.io</option>
-                        </select>
-                    </div>
-                    <div class="custom-relay">
-                        <input type="text" id="custom-relay-input" placeholder="wss://your-relay.com">
-                        <button id="add-relay-button">Add Explorer</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Player Profile -->
-        <div id="player-profile" class="hide">
-            <div id="player-profile-header">
-                <img id="player-profile-image" src="assets/icons/default-avatar.png" alt="Profile">
-                <div id="player-profile-details">
-                    <div id="player-profile-name">Loading...</div>
-                    <div id="player-profile-npub">Loading...</div>
-                    <div id="player-profile-title"></div>
-                </div>
-            </div>
-            <div id="player-profile-stats">
-                <div class="profile-stat"><div class="label">Score:</div><div class="value" id="profile-score">0</div></div>
-                <div class="profile-stat"><div class="label">Items:</div><div class="value" id="profile-items">0</div></div>
-                <div class="profile-stat"><div class="label">Interactions:</div><div class="value" id="profile-interactions">0</div></div>
-            </div>
-        </div>
-
-        <!-- Leaderboard -->
-        <div id="leaderboard-container" class="hide">
-            <h3>Leaderboard</h3>
-            <select id="leaderboard-type">
-                <option value="score">Score</option>
-                <option value="items">Items</option>
-                <option value="quests">Quests</option>
-            </select>
-            <div id="leaderboard-entries"></div>
-        </div>
-
-        <!-- Chat Container -->
-        <div id="chat-container" class="hide">
-            <div id="chat-messages"></div>
-            <div style="display: flex;">
-                <input type="text" id="chat-input" placeholder="Type a message...">
-                <button id="send-chat-button">Send</button>
-            </div>
-        </div>
-
-        <!-- Mobile Controls -->
-        <div id="mobile-controls" class="hide">
-            <div id="mobile-control-up" class="mobile-control-button">↑</div>
-            <div id="mobile-control-down" class="mobile-control-button">↓</div>
-            <div id="mobile-control-left" class="mobile-control-button">←</div>
-            <div id="mobile-control-right" class="mobile-control-button">→</div>
-        </div>
-
-        <!-- Toast Notifications -->
-        <div id="toast-container"></div>
-    </div>
-
-    <!-- External Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    // Insert after the main login button
+    loginButton.parentNode.insertBefore(guestLoginButton, loginButton.nextSibling);
     
-    <!-- Core scripts (in the proper order) -->
-    <script type="module">
-        // Check if module loading works
-        console.log("Module loading is working");
+    // Set up guest login
+    setupGuestLogin(guestLoginButton);
+  } else if (existingGuestButton) {
+    // If the button already exists, just set up its logic
+    setupGuestLogin(existingGuestButton);
+  }
+  
+  // Set up regular login button
+  if (loginButton) {
+    setupNostrLogin(loginButton);
+  }
+  
+  // Set default explorer relay
+  setDefaultExplorerRelay();
+});
+
+// Set up Nostr login
+function setupNostrLogin(loginButton) {
+  const loginLoader = document.getElementById('login-loader');
+  const loginStatus = document.getElementById('login-status');
+  
+  loginButton.addEventListener('click', async function() {
+    loginButton.disabled = true;
+    if (loginLoader) loginLoader.classList.remove('hide');
+    if (loginStatus) loginStatus.textContent = 'Looking for Nostr extension...';
+    
+    try {
+      // Wait for window.nostr to be available
+      let nostrAvailable = false;
+      let attempts = 0;
+      
+      while (!nostrAvailable && attempts < 10) {
+        if (window.nostr && typeof window.nostr.getPublicKey === 'function') {
+          nostrAvailable = true;
+        } else {
+          await new Promise(r => setTimeout(r, 200));
+          attempts++;
+        }
+      }
+      
+      if (!nostrAvailable) {
+        throw new Error('Nostr extension not found. Please install a NIP-07 extension like Alby or nos2x.');
+      }
+      
+      if (loginStatus) loginStatus.textContent = 'Extension found! Requesting pubkey...';
+      const pubkey = await window.nostr.getPublicKey();
+      
+      if (!pubkey) {
+        throw new Error('No pubkey returned from extension');
+      }
+      
+      if (loginStatus) loginStatus.textContent = 'Got pubkey, logging in...';
+      
+      // Play sound and animation
+      playLoginAnimation();
+      
+      // Try to login with RelayWorld's auth module
+      if (window.RelayWorldCore) {
+        const authModule = window.RelayWorldCore.getModule('auth');
+        if (authModule && typeof authModule.loginWithNostr === 'function') {
+          await authModule.loginWithNostr(pubkey);
+          
+          // Ensure profile data is loaded
+          const nostrModule = window.RelayWorldCore.getModule('nostr');
+          if (nostrModule) {
+            // Wait a moment for profile to load
+            await new Promise(r => setTimeout(r, 1000));
+            
+            // If profile doesn't exist yet, fetch it explicitly
+            if (!nostrModule.currentUser || !nostrModule.currentUser.profile) {
+              await nostrModule.fetchProfile(pubkey);
+            }
+          }
+          
+          if (loginStatus) loginStatus.textContent = 'Login successful!';
+          
+          // Hide login screen after a delay
+          setTimeout(() => {
+            const loginScreen = document.getElementById('login-screen');
+            if (loginScreen) loginScreen.classList.add('hide');
+            
+            // Ensure 3D engine has player data
+            updatePlayerProfileIn3D(pubkey);
+          }, 1500);
+        } else {
+          // Fallback to manual login
+          manualLogin(pubkey);
+        }
+      } else {
+        // No RelayWorldCore, do manual login
+        manualLogin(pubkey);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      if (loginStatus) loginStatus.textContent = 'Login failed: ' + error.message;
+    } finally {
+      if (loginLoader) loginLoader.classList.add('hide');
+      loginButton.disabled = false;
+    }
+  });
+}
+
+// Set up guest login
+function setupGuestLogin(guestLoginButton) {
+  const loginLoader = document.getElementById('login-loader');
+  const loginStatus = document.getElementById('login-status');
+  
+  guestLoginButton.addEventListener('click', async function() {
+    guestLoginButton.disabled = true;
+    if (loginLoader) loginLoader.classList.remove('hide');
+    if (loginStatus) loginStatus.textContent = 'Setting up guest account...';
+    
+    try {
+      // Prompt for username
+      const guestName = promptForGuestName();
+      
+      // Generate a random pubkey for the guest
+      const guestId = 'guest_' + Math.random().toString(36).substring(2, 15);
+      const pubkey = guestId;
+      
+      if (loginStatus) loginStatus.textContent = 'Guest account created!';
+      
+      // Play sound and animation
+      playLoginAnimation();
+      
+      // Create a guest profile
+      const guestProfile = {
+        name: guestName,
+        picture: 'assets/icons/default-avatar.png',
+        about: 'Guest user'
+      };
+      
+      // Try to login with RelayWorld's auth module
+      if (window.RelayWorldCore) {
+        const authModule = window.RelayWorldCore.getModule('auth');
+        const nostrModule = window.RelayWorldCore.getModule('nostr');
         
-        // Fallback for modules in case they don't load properly
-        window.addEventListener('error', function(e) {
-            if (e.message.includes('Cannot use import statement')) {
-                console.error("Module loading failed, switching to script tags");
-                
-                // Load core scripts with regular script tags
-                const scripts = [
-                    "js/core/event-bus.js",
-                    "js/core/config.js",
-                    "js/core/relay-world-core.js",
-                    "js/utils/utils.js",
-                    "js/utils/crypto-utils.js",
-                    "js/utils/nostr-utils.js",
-                    "js/utils/debug.js",
-                    "js/main.js"
-                ];
-                
-                scripts.forEach(script => {
-                    const scriptEl = document.createElement('script');
-                    scriptEl.src = script;
-                    document.body.appendChild(scriptEl);
+        if (authModule) {
+          // Set current user in auth module
+          authModule.currentUser = { pubkey };
+          
+          // Set current user and profile in nostr module
+          if (nostrModule) {
+            nostrModule.currentUser = { 
+              pubkey, 
+              profile: guestProfile
+            };
+            
+            // Add to users map
+            nostrModule.users.set(pubkey, {
+              pubkey,
+              profile: guestProfile,
+              notes: [],
+              createdAt: Math.floor(Date.now() / 1000)
+            });
+          }
+          
+          // Notify about login
+          if (window.RelayWorldCore.eventBus) {
+            window.RelayWorldCore.eventBus.emit('auth:login', { pubkey });
+          }
+          
+          const uiModule = window.RelayWorldCore.getModule('ui');
+          if (uiModule) {
+            // Show game UI
+            uiModule.hideLoginScreen();
+            uiModule.showGameUI();
+            uiModule.updatePlayerProfile();
+          }
+        } else {
+          // Fallback to manual login
+          manualGuestLogin(pubkey, guestProfile);
+        }
+      } else {
+        // No RelayWorldCore, do manual login
+        manualGuestLogin(pubkey, guestProfile);
+      }
+      
+      // Ensure 3D mode is activated
+      if (window.RelayWorld3D) {
+        setTimeout(() => {
+          if (!window.RelayWorld3D.players.has(pubkey)) {
+            window.RelayWorld3D.addPlayer(pubkey, {
+              name: guestName,
+              picture: 'assets/icons/default-avatar.png'
+            });
+          }
+        }, 1000);
+      }
+      
+    } catch (error) {
+      console.error('Guest login error:', error);
+      if (loginStatus) loginStatus.textContent = 'Guest login failed: ' + error.message;
+    } finally {
+      if (loginLoader) loginLoader.classList.add('hide');
+      guestLoginButton.disabled = false;
+    }
+  });
+}
+
+// Prompt for guest name with validation
+function promptForGuestName() {
+  let guestName = '';
+  
+  while (!guestName || guestName.length < 3 || guestName.length > 20) {
+    guestName = prompt('Enter your guest username (3-20 characters):', 'Guest' + Math.floor(Math.random() * 1000));
+    
+    if (guestName === null) {
+      // User clicked cancel, provide a default name
+      guestName = 'Guest' + Math.floor(Math.random() * 1000);
+      break;
+    }
+    
+    if (guestName.length < 3) {
+      alert('Username must be at least 3 characters long.');
+    } else if (guestName.length > 20) {
+      alert('Username must be at most 20 characters long.');
+    }
+  }
+  
+  return guestName;
+}
+
+// Fallback manual login for Nostr users
+function manualLogin(pubkey) {
+  // Hide login screen
+  const loginScreen = document.getElementById('login-screen');
+  if (loginScreen) {
+    loginScreen.style.opacity = "0";
+    setTimeout(() => loginScreen.classList.add('hide'), 1000);
+  }
+  
+  // Show game UI
+  document.getElementById('top-bar')?.classList.remove('hide');
+  document.getElementById('chat-container')?.classList.remove('hide');
+  document.getElementById('player-profile')?.classList.remove('hide');
+  
+  // Add the player's pubkey to the profile
+  const npubEl = document.getElementById('player-profile-npub');
+  const nameEl = document.getElementById('player-profile-name');
+  
+  if (npubEl) npubEl.textContent = pubkey.substring(0, 8);
+  if (nameEl) nameEl.textContent = `User ${pubkey.substring(0, 8)}`;
+  
+  // Call getProfile to try to fetch profile data
+  getProfileData(pubkey).then(profile => {
+    if (profile && nameEl) {
+      nameEl.textContent = profile.name || `User ${pubkey.substring(0, 8)}`;
+      
+      // Update profile image
+      const profileImg = document.getElementById('player-profile-image');
+      if (profileImg && profile.picture) {
+        profileImg.src = profile.picture;
+      }
+      
+      // Update 3D model
+      updatePlayerProfileIn3D(pubkey, profile);
+    }
+  });
+}
+
+// Fallback manual login for guests
+function manualGuestLogin(pubkey, profile) {
+  // Hide login screen
+  const loginScreen = document.getElementById('login-screen');
+  if (loginScreen) {
+    loginScreen.style.opacity = "0";
+    setTimeout(() => loginScreen.classList.add('hide'), 1000);
+  }
+  
+  // Show game UI
+  document.getElementById('top-bar')?.classList.remove('hide');
+  document.getElementById('chat-container')?.classList.remove('hide');
+  document.getElementById('player-profile')?.classList.remove('hide');
+  
+  // Update profile display
+  const npubEl = document.getElementById('player-profile-npub');
+  const nameEl = document.getElementById('player-profile-name');
+  const profileImg = document.getElementById('player-profile-image');
+  
+  if (npubEl) npubEl.textContent = 'Guest';
+  if (nameEl) nameEl.textContent = profile.name;
+  if (profileImg) profileImg.src = profile.picture;
+  
+  // Update 3D model
+  updatePlayerProfileIn3D(pubkey, profile);
+}
+
+// Get profile data from nostr or local storage
+async function getProfileData(pubkey) {
+  // Try to fetch from nostr
+  if (window.nostr) {
+    try {
+      // Create a basic relay connection
+      const relayUrl = "wss://relay.damus.io";
+      const ws = new WebSocket(relayUrl);
+      
+      // Set up a promise to wait for connection
+      const connectPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("Connection timeout")), 5000);
+        
+        ws.onopen = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+        
+        ws.onerror = (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        };
+      });
+      
+      // Wait for connection
+      await connectPromise;
+      
+      // Create a subscription ID
+      const subId = "profile-" + Math.random().toString(36).substring(2, 10);
+      
+      // Subscribe to profile events
+      ws.send(JSON.stringify([
+        "REQ",
+        subId,
+        {
+          authors: [pubkey],
+          kinds: [0],
+          limit: 1
+        }
+      ]));
+      
+      // Wait for response
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          ws.close();
+          resolve(null); // Return null if timeout
+        }, 5000);
+        
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            
+            if (message[0] === "EVENT" && message[1] === subId && message[2].kind === 0) {
+              const profile = JSON.parse(message[2].content);
+              clearTimeout(timeout);
+              ws.close();
+              resolve(profile);
+            }
+          } catch (error) {
+            console.error("Error parsing profile:", error);
+          }
+        };
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+// Play login sound and animation
+function playLoginAnimation() {
+  // Play sound if available
+  try {
+    const audio = new Audio('assets/sounds/login.mp3');
+    audio.play().catch(() => console.log('Unable to play sound'));
+  } catch (e) {
+    console.log('Sound playback not available');
+  }
+  
+  // Animate sound wave
+  const soundWave = document.getElementById('sound-wave');
+  if (soundWave) {
+    soundWave.style.animation = 'sound-wave 4s ease-out infinite';
+    setTimeout(() => {
+      soundWave.style.animation = 'none';
+    }, 4000);
+  }
+}
+
+// Update player profile in 3D engine
+function updatePlayerProfileIn3D(pubkey, profileData = null) {
+  if (!window.RelayWorld3D) return;
+  
+  // Wait a moment to ensure 3D engine is initialized
+  setTimeout(() => {
+    if (!window.RelayWorld3D.initialized) {
+      window.RelayWorld3D.init();
+    }
+    
+    // Get profile data from RelayWorld if possible
+    if (!profileData && window.RelayWorldCore) {
+      const nostrModule = window.RelayWorldCore.getModule('nostr');
+      if (nostrModule && nostrModule.currentUser && nostrModule.currentUser.profile) {
+        profileData = nostrModule.currentUser.profile;
+      }
+    }
+    
+    // Set up player data
+    const playerData = {
+      name: profileData?.name || document.getElementById('player-profile-name')?.textContent || pubkey.substring(0, 8),
+      picture: profileData?.picture || document.getElementById('player-profile-image')?.src || 'assets/icons/default-avatar.png'
+    };
+    
+    // Remove existing player if any
+    if (window.RelayWorld3D.players.has(pubkey)) {
+      window.RelayWorld3D.removePlayer(pubkey);
+    }
+    
+    // Add player with updated profile
+    window.RelayWorld3D.addPlayer(pubkey, playerData);
+  }, 1000);
+}
+
+// Set default explorer relay to damus.io
+function setDefaultExplorerRelay() {
+  // Wait for RelayWorld to initialize
+  const checkRelayWorld = setInterval(() => {
+    if (window.RelayWorldCore) {
+      clearInterval(checkRelayWorld);
+      
+      // Set default explorer relay
+      window.RelayWorldCore.setConfig('EXPLORER_RELAYS', ["wss://relay.damus.io"]);
+      
+      // Set active explorer relay
+      const nostrModule = window.RelayWorldCore.getModule('nostr');
+      if (nostrModule) {
+        nostrModule.activeExplorerRelay = "wss://relay.damus.io";
+        
+        // Connect to explorer relay if not already connected
+        if (!nostrModule.relayConnections.explorers.has("wss://relay.damus.io")) {
+          setTimeout(() => {
+            nostrModule.connectToExplorerRelay("wss://relay.damus.io");
+          }, 2000);
+        }
+      }
+      
+      // Update UI selector
+      const relaySelector = document.getElementById('relay-selector');
+      if (relaySelector) {
+        // Clear existing options
+        relaySelector.innerHTML = '';
+        
+        // Add default option
+        const option = document.createElement('option');
+        option.value = "wss://relay.damus.io";
+        option.textContent = "relay.damus.io";
+        option.selected = true;
+        relaySelector.appendChild(option);
+        
+        // Enable add relay button
+        const addRelayButton = document.getElementById('add-relay-button');
+        const customRelayInput = document.getElementById('custom-relay-input');
+        
+        if (addRelayButton && customRelayInput) {
+          addRelayButton.addEventListener('click', () => {
+            const relayUrl = customRelayInput.value.trim();
+            if (relayUrl) {
+              // Ensure protocol
+              let url = relayUrl;
+              if (!url.startsWith('wss://') && !url.startsWith('ws://')) {
+                url = 'wss://' + url;
+              }
+              
+              // Add to explorer relays
+              if (nostrModule && typeof nostrModule.connectToExplorerRelay === 'function') {
+                nostrModule.connectToExplorerRelay(url).then(() => {
+                  // Add to dropdown
+                  const option = document.createElement('option');
+                  option.value = url;
+                  option.textContent = url.replace('wss://', '');
+                  relaySelector.appendChild(option);
+                  
+                  // Clear input
+                  customRelayInput.value = '';
+                  
+                  // Show toast
+                  showToast(`Added explorer relay: ${url}`, 'success');
+                }).catch(error => {
+                  showToast(`Failed to connect to relay: ${error.message}`, 'error');
                 });
+              }
             }
-        }, {once: true});
-    </script>
-    
-    <script src="js/core/event-bus.js" type="module"></script>
-    <script src="js/core/config.js" type="module"></script>
-    <script src="js/core/relay-world-core.js" type="module"></script>
-    
-    <!-- Utils -->
-    <script src="js/utils/utils.js" type="module"></script>
-    <script src="js/utils/crypto-utils.js" type="module"></script>
-    <script src="js/utils/nostr-utils.js" type="module"></script>
-    <script src="js/utils/debug.js" type="module"></script>
-    
-    <!-- Main application -->
-    <script src="js/main.js" type="module"></script>
-    
-    <!-- Regular scripts (non-module) -->
-    <script>
-        // Function to load scripts sequentially
-        function loadScriptsSequentially(scripts, callback) {
-            let index = 0;
-            
-            function loadNext() {
-                if (index < scripts.length) {
-                    const script = document.createElement('script');
-                    script.src = scripts[index];
-                    script.onload = loadNext;
-                    script.onerror = loadNext; // Continue even if there's an error
-                    document.body.appendChild(script);
-                    index++;
-                } else if (callback) {
-                    callback();
-                }
-            }
-            
-            loadNext();
+          });
         }
-        
-        // Load fixed scripts
-        loadScriptsSequentially([
-            "js/fixed-login-script.js", 
-            "js/improved-3d-engine.js"
-        ], function() {
-            console.log("All fix scripts loaded");
-        });
-    </script>
-</body>
-</html>
+      }
+    }
+  }, 500);
+  
+  // Clear interval after 10 seconds
+  setTimeout(() => clearInterval(checkRelayWorld), 10000);
+}
+
+// Show a toast notification
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 3000);
+}
+
+// Apply styling fixes to login page
+function fixLoginStyles() {
+  // Make sure the triforce animation is working
+  const triforceContainer = document.querySelector('.triforce-container');
+  if (triforceContainer) {
+    triforceContainer.style.animation = 'triforce-spin 10s linear infinite';
+  }
+  
+  const triforces = document.querySelectorAll('.triforce');
+  triforces.forEach(t => {
+    t.style.animation = 'triforce-pulse 2s ease-in-out infinite alternate';
+  });
+  
+  // Fix sound wave
+  const soundWave = document.getElementById('sound-wave');
+  if (soundWave) {
+    // Initially no animation, will be triggered on login
+    soundWave.style.animation = 'none';
+  }
+  
+  // Make sure login panel floating animation works
+  const loginPanel = document.getElementById('login-panel');
+  if (loginPanel) {
+    loginPanel.style.animation = 'float 3s ease-in-out infinite';
+  }
+  
+  // Fix login screen positioning
+  const loginScreen = document.getElementById('login-screen');
+  if (loginScreen) {
+    loginScreen.style.display = 'flex';
+    loginScreen.style.justifyContent = 'center';
+    loginScreen.style.alignItems = 'center';
+    loginScreen.style.height = '100vh';
+    loginScreen.style.width = '100vw';
+    loginScreen.style.position = 'fixed';
+    loginScreen.style.top = '0';
+    loginScreen.style.left = '0';
+    loginScreen.style.zIndex = '9999';
+  }
+}
