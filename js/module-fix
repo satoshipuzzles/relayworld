@@ -1,0 +1,979 @@
+/**
+ * module-fix.js
+ * Fix for ES module loading issues in Relay World
+ */
+
+// Create a module loader system
+const ModuleSystem = {
+  modules: new Map(),
+  
+  // Register a module
+  register: function(name, moduleExports) {
+    this.modules.set(name, moduleExports);
+    console.log(`[ModuleSystem] Registered module: ${name}`);
+  },
+  
+  // Get a registered module
+  get: function(name) {
+    if (!this.modules.has(name)) {
+      console.warn(`[ModuleSystem] Module "${name}" not found`);
+      return null;
+    }
+    return this.modules.get(name);
+  },
+  
+  // Initialize all registered modules
+  initializeAll: async function() {
+    console.log("[ModuleSystem] Initializing all modules...");
+    
+    const orderedModules = Array.from(this.modules.entries())
+      .sort((a, b) => (a[1].priority || 9999) - (b[1].priority || 9999));
+    
+    for (const [name, module] of orderedModules) {
+      if (typeof module.init === 'function') {
+        try {
+          console.log(`[ModuleSystem] Initializing module: ${name}`);
+          await module.init();
+        } catch (error) {
+          console.error(`[ModuleSystem] Failed to initialize module "${name}":`, error);
+          if (module.critical) {
+            throw error;
+          }
+        }
+      }
+    }
+    
+    console.log("[ModuleSystem] All modules initialized");
+  }
+};
+
+// Expose ModuleSystem globally
+window.ModuleSystem = ModuleSystem;
+
+// Create EventBus
+const EventBus = {
+  // Storage for event listeners
+  listeners: new Map(),
+  
+  // Initialize the event bus
+  init: function() {
+    console.log("[EventBus] Initializing event bus");
+    return this;
+  },
+  
+  // Subscribe to an event
+  on: function(event, callback) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event).push(callback);
+    return this; // For chaining
+  },
+  
+  // Publish an event
+  emit: function(event, data) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event).forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`[EventBus] Error in listener for "${event}":`, error);
+        }
+      });
+    }
+    return this; // For chaining
+  },
+  
+  // Remove a specific listener
+  off: function(event, callback) {
+    if (this.listeners.has(event)) {
+      const listeners = this.listeners.get(event);
+      const index = listeners.indexOf(callback);
+      if (index !== -1) {
+        listeners.splice(index, 1);
+      }
+    }
+    return this; // For chaining
+  },
+  
+  // Remove all listeners for an event
+  offAll: function(event) {
+    if (this.listeners.has(event)) {
+      this.listeners.delete(event);
+    }
+    return this; // For chaining
+  },
+  
+  // Listen for an event once
+  once: function(event, callback) {
+    // Create a wrapper that will call the callback and remove itself
+    const onceCallback = (data) => {
+      this.off(event, onceCallback);
+      callback(data);
+    };
+    
+    return this.on(event, onceCallback);
+  },
+  
+  // Check if an event has listeners
+  hasListeners: function(event) {
+    return this.listeners.has(event) && this.listeners.get(event).length > 0;
+  },
+  
+  // Get number of listeners for an event
+  listenerCount: function(event) {
+    if (!this.listeners.has(event)) {
+      return 0;
+    }
+    return this.listeners.get(event).length;
+  },
+  
+  // Clear all event listeners
+  clear: function() {
+    this.listeners.clear();
+    return this;
+  }
+};
+
+// Register EventBus with ModuleSystem
+ModuleSystem.register('eventBus', EventBus);
+
+// Basic Config Manager
+const ConfigManager = {
+  // Configuration storage
+  configs: new Map(),
+  
+  // Storage key for persisting configuration
+  storageKey: 'relayworld_config',
+  
+  // Initialize the configuration manager
+  init: async function() {
+    console.log("[ConfigManager] Initializing configuration manager");
+    
+    // Load saved configuration
+    await this.loadSavedConfig();
+    
+    return this;
+  },
+  
+  // Set a configuration value
+  setConfig: function(key, value) {
+    const oldValue = this.configs.get(key);
+    this.configs.set(key, value);
+    
+    // Notify about config change
+    EventBus.emit('config:change', { key, value, oldValue });
+    
+    return this;
+  },
+  
+  // Get a configuration value
+  getConfig: function(key, defaultValue = null) {
+    return this.configs.has(key) ? this.configs.get(key) : defaultValue;
+  },
+  
+  // Check if a configuration key exists
+  hasConfig: function(key) {
+    return this.configs.has(key);
+  },
+  
+  // Remove a configuration value
+  removeConfig: function(key) {
+    const hadKey = this.configs.has(key);
+    const oldValue = this.configs.get(key);
+    this.configs.delete(key);
+    
+    if (hadKey) {
+      // Notify about config removal
+      EventBus.emit('config:remove', { key, oldValue });
+    }
+    
+    return this;
+  },
+  
+  // Get all configuration as an object
+  getAllConfig: function() {
+    const configObj = {};
+    for (const [key, value] of this.configs.entries()) {
+      configObj[key] = value;
+    }
+    return configObj;
+  },
+  
+  // Load configuration from localStorage
+  loadSavedConfig: async function() {
+    try {
+      const savedConfig = localStorage.getItem(this.storageKey);
+      if (savedConfig) {
+        const config = JSON.parse(savedConfig);
+        
+        // Apply saved configuration
+        for (const [key, value] of Object.entries(config)) {
+          this.configs.set(key, value);
+        }
+        
+        console.log("[ConfigManager] Loaded saved configuration");
+      }
+    } catch (error) {
+      console.warn("[ConfigManager] Failed to load saved configuration:", error);
+    }
+    
+    return this;
+  },
+  
+  // Save configuration to localStorage
+  saveConfig: function() {
+    try {
+      const configObj = this.getAllConfig();
+      localStorage.setItem(this.storageKey, JSON.stringify(configObj));
+      console.log("[ConfigManager] Configuration saved");
+      return true;
+    } catch (error) {
+      console.error("[ConfigManager] Failed to save configuration:", error);
+      return false;
+    }
+  },
+  
+  // Reset configuration to defaults
+  resetConfig: function() {
+    this.configs.clear();
+    localStorage.removeItem(this.storageKey);
+    
+    // Notify about config reset
+    EventBus.emit('config:reset', null);
+    
+    return this;
+  }
+};
+
+// Register ConfigManager with ModuleSystem
+ModuleSystem.register('config', ConfigManager);
+
+// Crypto Utilities
+const CryptoUtils = {
+  // Generate a random private key
+  generatePrivateKey: function() {
+    const privateKey = new Uint8Array(32);
+    window.crypto.getRandomValues(privateKey);
+    return this.uint8ArrayToHex(privateKey);
+  },
+  
+  // Convert a private key to a public key
+  getPublicKey: function(privateKey) {
+    // In a real implementation, this would use secp256k1
+    // For this example, we'll use a placeholder
+    return "simulated_" + privateKey.substring(0, 16);
+  },
+  
+  // Generate a random ID
+  randomId: function(prefix) {
+    const prefixStr = prefix || '';
+    return prefixStr + Date.now() + "-" + Math.random().toString(36).substring(2, 11);
+  },
+  
+  // Generate a random hex string
+  randomHex: function(length) {
+    const len = length || 64;
+    let result = "";
+    for (let i = 0; i < len / 2; i++) {
+      result += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+    }
+    return result;
+  },
+  
+  // Hash a string using SHA-256
+  sha256: async function(message) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(message);
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    } catch (error) {
+      console.error("SHA-256 error:", error);
+      // Fallback to CryptoJS if available
+      if (typeof CryptoJS !== 'undefined' && CryptoJS.SHA256) {
+        return CryptoJS.SHA256(message).toString();
+      }
+      throw error;
+    }
+  },
+  
+  // Convert hex string to Uint8Array
+  hexToUint8Array: function(hexString) {
+    if (!hexString) return new Uint8Array(0);
+    const matches = hexString.match(/.{1,2}/g);
+    if (!matches) return new Uint8Array(0);
+    return new Uint8Array(matches.map(byte => parseInt(byte, 16)));
+  },
+  
+  // Convert Uint8Array to hex string
+  uint8ArrayToHex: function(bytes) {
+    return Array.from(bytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  },
+  
+  // Generate a random string
+  randomString: function(length) {
+    const len = length || 16;
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const randomValues = new Uint8Array(len);
+    window.crypto.getRandomValues(randomValues);
+    let result = '';
+    
+    for (let i = 0; i < len; i++) {
+      result += charset[randomValues[i] % charset.length];
+    }
+    
+    return result;
+  },
+  
+  // Generate a random 32-byte shared secret
+  generateSharedSecret: function() {
+    const secret = new Uint8Array(32);
+    window.crypto.getRandomValues(secret);
+    return this.uint8ArrayToHex(secret);
+  },
+  
+  // AES-GCM encryption
+  encryptAESGCM: async function(data, key) {
+    try {
+      // Convert key from hex to Uint8Array if needed
+      let keyArray = key;
+      if (typeof key === 'string') {
+        keyArray = this.hexToUint8Array(key);
+      }
+      
+      // Create a CryptoKey from the raw key data
+      const cryptoKey = await window.crypto.subtle.importKey(
+        'raw',
+        keyArray,
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt']
+      );
+      
+      // Generate a random IV
+      const iv = new Uint8Array(12);
+      window.crypto.getRandomValues(iv);
+      
+      // Convert data to Uint8Array if it's a string
+      let dataArray = data;
+      if (typeof data === 'string') {
+        const encoder = new TextEncoder();
+        dataArray = encoder.encode(data);
+      }
+      
+      // Encrypt the data
+      const encryptedBuffer = await window.crypto.subtle.encrypt(
+        {
+          name: 'AES-GCM',
+          iv: iv
+        },
+        cryptoKey,
+        dataArray
+      );
+      
+      // Combine IV and encrypted data
+      const encryptedArray = new Uint8Array(encryptedBuffer);
+      const result = new Uint8Array(iv.length + encryptedArray.length);
+      result.set(iv);
+      result.set(encryptedArray, iv.length);
+      
+      // Return as hex string
+      return this.uint8ArrayToHex(result);
+    } catch (error) {
+      console.error('[CryptoUtils] AES-GCM encryption failed:', error);
+      throw error;
+    }
+  }
+};
+
+// Register CryptoUtils with ModuleSystem
+ModuleSystem.register('cryptoUtils', CryptoUtils);
+
+// Nostr Utilities
+const NostrUtils = {
+  // Sign an event using Nostr extension
+  signEvent: async function(event, privateKey = null) {
+    try {
+      if (privateKey) {
+        // Sign with provided private key (for random identities like gift wraps)
+        // In a real implementation, this would use nostr-tools or a similar library
+        // For now, we'll simulate the signature
+        const id = await this.calculateId(event);
+        const signature = "simulated_sig_" + CryptoUtils.randomHex(32);
+        
+        return {
+          ...event,
+          id,
+          sig: signature
+        };
+      } else if (window.nostr) {
+        // Use NIP-07 extension
+        // Make sure the event has required fields
+        if (!event.created_at) {
+          event.created_at = Math.floor(Date.now() / 1000);
+        }
+        
+        return await window.nostr.signEvent(event);
+      } else {
+        throw new Error("No signing method available");
+      }
+    } catch (error) {
+      console.error('[NostrUtils] Failed to sign event:', error);
+      throw error;
+    }
+  },
+  
+  // Calculate event ID
+  calculateId: async function(event) {
+    try {
+      // Create the serialized event for ID calculation
+      const serialized = [
+        0,
+        event.pubkey,
+        event.created_at,
+        event.kind,
+        event.tags,
+        event.content
+      ];
+      
+      // Hash the serialized event
+      const id = await CryptoUtils.sha256(JSON.stringify(serialized));
+      return id;
+    } catch (error) {
+      console.error('[NostrUtils] Failed to calculate event ID:', error);
+      throw error;
+    }
+  },
+  
+  // Verify event signature
+  verifySignature: function(event) {
+    // In a real implementation, this would verify the signature
+    // For now, we'll simulate the verification
+    return true;
+  },
+  
+  // Format a pubkey for display
+  formatPubkey: function(pubkey, options = {}) {
+    const { short = true, useNpub = true } = options;
+    
+    if (!pubkey) return "unknown";
+    
+    if (useNpub && window.NostrTools && window.NostrTools.nip19) {
+      try {
+        // Convert to npub if NostrTools is available
+        const npub = window.NostrTools.nip19.npubEncode(pubkey);
+        if (short) {
+          return `${npub.substring(0, 8)}...${npub.substring(npub.length - 4)}`;
+        }
+        return npub;
+      } catch (error) {
+        console.warn('[NostrUtils] Failed to convert pubkey to npub:', error);
+      }
+    }
+    
+    // Fallback to hex format
+    if (short) {
+      return `${pubkey.substring(0, 8)}...`;
+    }
+    
+    return pubkey;
+  },
+  
+  // Format a timestamp
+  formatTimestamp: function(timestamp, options = {}) {
+    const { format = 'relative' } = options;
+    const date = new Date(timestamp * 1000);
+    
+    if (format === 'relative') {
+      return this.timeAgo(date);
+    } else if (format === 'time') {
+      return date.toLocaleTimeString();
+    } else if (format === 'date') {
+      return date.toLocaleDateString();
+    } else if (format === 'datetime') {
+      return date.toLocaleString();
+    }
+    
+    return date.toISOString();
+  },
+  
+  // Format relative time
+  timeAgo: function(date) {
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) {
+      return "just now";
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return `${hours}h ago`;
+    }
+    
+    const days = Math.floor(hours / 24);
+    if (days < 7) {
+      return `${days}d ago`;
+    }
+    
+    const weeks = Math.floor(days / 7);
+    if (weeks < 4) {
+      return `${weeks}w ago`;
+    }
+    
+    const months = Math.floor(days / 30);
+    if (months < 12) {
+      return `${months}mo ago`;
+    }
+    
+    const years = Math.floor(days / 365);
+    return `${years}y ago`;
+  },
+  
+  // Create a conversation ID from participants
+  createConversationId: function(participants) {
+    // Sort participants to ensure consistent ID regardless of order
+    const sorted = [...participants].sort();
+    return sorted.join('+');
+  }
+};
+
+// Register NostrUtils with ModuleSystem
+ModuleSystem.register('nostrUtils', NostrUtils);
+
+// Create RelayWorldCore as a replacement for the ES module version
+const RelayWorldCore = {
+  // Module registry (use ModuleSystem instead)
+  modules: ModuleSystem.modules,
+  
+  // Reference to the event bus
+  eventBus: EventBus,
+  
+  // Reference to the config manager
+  config: ConfigManager,
+  
+  // Register a module (use ModuleSystem instead)
+  registerModule: function(name, module) {
+    ModuleSystem.register(name, module);
+    return this;
+  },
+  
+  // Get a registered module
+  getModule: function(name) {
+    return ModuleSystem.get(name);
+  },
+  
+  // Set configuration
+  setConfig: function(key, value) {
+    ConfigManager.setConfig(key, value);
+    return this;
+  },
+  
+  // Get configuration
+  getConfig: function(key, defaultValue = null) {
+    return ConfigManager.getConfig(key, defaultValue);
+  },
+  
+  // Initialize all modules
+  init: async function() {
+    console.log("[Core] Initializing Relay World core...");
+    
+    // Initialize config manager
+    await ConfigManager.init();
+    
+    // Initialize event bus
+    EventBus.init();
+    
+    // Initialize modules using ModuleSystem
+    await ModuleSystem.initializeAll();
+    
+    console.log("[Core] Relay World core initialized");
+    EventBus.emit('core:ready', null);
+    return this;
+  }
+};
+
+// Expose RelayWorldCore globally
+window.RelayWorldCore = RelayWorldCore;
+
+// Load the system when the page is ready
+document.addEventListener('DOMContentLoaded', function() {
+  console.log("[ModuleSystem] Page loaded, setting up module system...");
+  
+  // Check if the login page needs to be fixed
+  fixLoginPage();
+});
+
+// Fix the login page
+function fixLoginPage() {
+  console.log("[ModuleSystem] Fixing login page...");
+  
+  // Fix login screen styling
+  const loginScreen = document.getElementById('login-screen');
+  const loginPanel = document.getElementById('login-panel');
+  
+  if (loginScreen) {
+    // Ensure proper styling for login screen
+    loginScreen.style.display = 'flex';
+    loginScreen.style.justifyContent = 'center';
+    loginScreen.style.alignItems = 'center';
+    loginScreen.style.height = '100vh';
+    loginScreen.style.width = '100vw';
+    loginScreen.style.position = 'fixed';
+    loginScreen.style.top = '0';
+    loginScreen.style.left = '0';
+    loginScreen.style.zIndex = '9999';
+  }
+  
+  // Check and ensure there's a guest login button
+  const existingGuestButton = document.getElementById('guest-login-button');
+  const loginButton = document.getElementById('login-button');
+  
+  if (!existingGuestButton && loginButton && loginButton.parentNode) {
+    // Create guest login button
+    const guestLoginButton = document.createElement('button');
+    guestLoginButton.id = 'guest-login-button';
+    guestLoginButton.className = 'secondary-button';
+    guestLoginButton.textContent = 'PLAY AS GUEST';
+    
+    // Insert after the main login button
+    loginButton.parentNode.insertBefore(guestLoginButton, loginButton.nextSibling);
+    
+    // Set up guest login
+    setupGuestLogin(guestLoginButton);
+  } else if (existingGuestButton) {
+    // If the button already exists, just set up its logic
+    setupGuestLogin(existingGuestButton);
+  }
+  
+  // Set up regular login button
+  if (loginButton) {
+    setupNostrLogin(loginButton);
+  }
+  
+  // Create toast container if it doesn't exist
+  if (!document.getElementById('toast-container')) {
+    const toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.style.position = 'fixed';
+    toastContainer.style.top = '20px';
+    toastContainer.style.right = '20px';
+    toastContainer.style.zIndex = '10000';
+    document.body.appendChild(toastContainer);
+  }
+}
+
+// Set up Nostr login
+function setupNostrLogin(loginButton) {
+  const loginLoader = document.getElementById('login-loader');
+  const loginStatus = document.getElementById('login-status');
+  
+  loginButton.addEventListener('click', async function() {
+    loginButton.disabled = true;
+    if (loginLoader) loginLoader.classList.remove('hide');
+    if (loginStatus) loginStatus.textContent = 'Looking for Nostr extension...';
+    
+    try {
+      // Check if window.nostr is available
+      if (!window.nostr) {
+        showToast('Nostr extension not found. Please install a NIP-07 extension like Alby or nos2x.', 'error');
+        throw new Error('Nostr extension not found');
+      }
+      
+      if (loginStatus) loginStatus.textContent = 'Extension found! Requesting pubkey...';
+      const pubkey = await window.nostr.getPublicKey();
+      
+      if (!pubkey) {
+        throw new Error('No pubkey returned from extension');
+      }
+      
+      if (loginStatus) loginStatus.textContent = 'Got pubkey, logging in...';
+      
+      // Play login animation
+      const soundWave = document.getElementById('sound-wave');
+      if (soundWave) {
+        soundWave.style.animation = 'sound-wave 4s ease-out infinite';
+      }
+      
+      // Hide login screen after a delay
+      setTimeout(() => {
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) {
+          loginScreen.classList.add('hide');
+        }
+        
+        // Show game UI
+        document.getElementById('top-bar')?.classList.remove('hide');
+        document.getElementById('chat-container')?.classList.remove('hide');
+        document.getElementById('player-profile')?.classList.remove('hide');
+        document.getElementById('leaderboard-container')?.classList.remove('hide');
+        
+        // Set player profile info
+        const nameEl = document.getElementById('player-profile-name');
+        const npubEl = document.getElementById('player-profile-npub');
+        
+        if (nameEl) nameEl.textContent = `User ${pubkey.substring(0, 8)}`;
+        if (npubEl) npubEl.textContent = pubkey.substring(0, 8);
+        
+        showToast('Login successful! Welcome to Relay World!', 'success');
+      }, 1500);
+    } catch (error) {
+      console.error('Login error:', error);
+      if (loginStatus) loginStatus.textContent = 'Login failed: ' + error.message;
+      showToast('Login failed: ' + error.message, 'error');
+    } finally {
+      if (loginLoader) loginLoader.classList.add('hide');
+      loginButton.disabled = false;
+    }
+  });
+}
+
+// Set up guest login with improved UI
+function setupGuestLogin(guestLoginButton) {
+  const loginLoader = document.getElementById('login-loader');
+  const loginStatus = document.getElementById('login-status');
+  
+  guestLoginButton.addEventListener('click', function() {
+    // Create modern username input dialog
+    createUsernameDialog(username => {
+      if (!username) return; // User canceled
+      
+      guestLoginButton.disabled = true;
+      if (loginLoader) loginLoader.classList.remove('hide');
+      if (loginStatus) loginStatus.textContent = 'Setting up guest account...';
+      
+      // Generate a random guest ID
+      const guestId = 'guest_' + Math.random().toString(36).substring(2, 15);
+      
+      // Play animation
+      const soundWave = document.getElementById('sound-wave');
+      if (soundWave) {
+        soundWave.style.animation = 'sound-wave 4s ease-out infinite';
+      }
+      
+      // Hide login screen after a delay
+      setTimeout(() => {
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) {
+          loginScreen.classList.add('hide');
+        }
+        
+        // Show game UI
+        document.getElementById('top-bar')?.classList.remove('hide');
+        document.getElementById('chat-container')?.classList.remove('hide');
+        document.getElementById('player-profile')?.classList.remove('hide');
+        document.getElementById('leaderboard-container')?.classList.remove('hide');
+        
+        // Set player profile info
+        const nameEl = document.getElementById('player-profile-name');
+        const npubEl = document.getElementById('player-profile-npub');
+        const profileImg = document.getElementById('player-profile-image');
+        
+        if (nameEl) nameEl.textContent = username;
+        if (npubEl) npubEl.textContent = 'Guest';
+        if (profileImg) profileImg.src = 'assets/icons/default-avatar.png';
+        
+        showToast(`Welcome, ${username}! You are playing as a guest.`, 'success');
+        
+        if (loginLoader) loginLoader.classList.add('hide');
+        guestLoginButton.disabled = false;
+      }, 1000);
+    });
+  });
+}
+
+// Create a modern username input dialog
+function createUsernameDialog(callback) {
+  // Create a stylish modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  overlay.style.display = 'flex';
+  overlay.style.justifyContent = 'center';
+  overlay.style.alignItems = 'center';
+  overlay.style.zIndex = '10000';
+  
+  // Create dialog container
+  const dialog = document.createElement('div');
+  dialog.style.backgroundColor = 'var(--color-light)';
+  dialog.style.border = '8px solid var(--color-medium)';
+  dialog.style.padding = '24px';
+  dialog.style.maxWidth = '90%';
+  dialog.style.width = '400px';
+  dialog.style.boxShadow = '0 0 0 4px var(--color-dark), 8px 8px 0 0 rgba(0,0,0,0.5)';
+  dialog.style.position = 'relative';
+  
+  // Add heading
+  const heading = document.createElement('h2');
+  heading.textContent = 'Enter Your Guest Username';
+  heading.style.color = 'var(--color-dark)';
+  heading.style.marginBottom = '20px';
+  heading.style.textAlign = 'center';
+  
+  // Add input field
+  const inputContainer = document.createElement('div');
+  inputContainer.style.marginBottom = '20px';
+  
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Username (3-20 characters)';
+  input.value = 'Guest' + Math.floor(Math.random() * 1000);
+  input.style.width = '100%';
+  input.style.padding = '12px';
+  input.style.boxSizing = 'border-box';
+  input.style.border = '2px solid var(--color-dark)';
+  input.style.fontSize = '16px';
+  
+  // Add error message area
+  const errorMsg = document.createElement('div');
+  errorMsg.style.color = 'var(--color-danger)';
+  errorMsg.style.fontSize = '14px';
+  errorMsg.style.marginTop = '5px';
+  errorMsg.style.visibility = 'hidden';
+  errorMsg.textContent = 'Username must be 3-20 characters';
+  
+  inputContainer.appendChild(input);
+  inputContainer.appendChild(errorMsg);
+  
+  // Add buttons
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.style.display = 'flex';
+  buttonsContainer.style.gap = '10px';
+  
+  const submitButton = document.createElement('button');
+  submitButton.textContent = 'Continue';
+  submitButton.className = 'primary-button';
+  submitButton.style.flex = '1';
+  
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = 'Cancel';
+  cancelButton.className = 'secondary-button';
+  cancelButton.style.flex = '1';
+  
+  buttonsContainer.appendChild(submitButton);
+  buttonsContainer.appendChild(cancelButton);
+  
+  // Assemble dialog
+  dialog.appendChild(heading);
+  dialog.appendChild(inputContainer);
+  dialog.appendChild(buttonsContainer);
+  overlay.appendChild(dialog);
+  
+  // Add to document
+  document.body.appendChild(overlay);
+  
+  // Focus input
+  setTimeout(() => input.focus(), 100);
+  
+  // Handle input validation
+  const validateInput = () => {
+    const value = input.value.trim();
+    if (value.length < 3 || value.length > 20) {
+      errorMsg.style.visibility = 'visible';
+      return false;
+    } else {
+      errorMsg.style.visibility = 'hidden';
+      return true;
+    }
+  };
+  
+  // Handle submit
+  const handleSubmit = () => {
+    if (validateInput()) {
+      const username = input.value.trim();
+      document.body.removeChild(overlay);
+      callback(username);
+    }
+  };
+  
+  // Submit when Enter key is pressed
+  input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      handleSubmit();
+    }
+  });
+  
+  // Handle cancel
+  const handleCancel = () => {
+    document.body.removeChild(overlay);
+    callback(null);
+  };
+  
+  // Attach event listeners
+  submitButton.addEventListener('click', handleSubmit);
+  cancelButton.addEventListener('click', handleCancel);
+  
+  // Close when clicking outside
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      handleCancel();
+    }
+  });
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + (type || '');
+  toast.style.backgroundColor = type === 'error' ? '#ffcccc' : 
+                               type === 'success' ? '#ccffcc' : 
+                               '#f0f0f0';
+  toast.style.color = '#333';
+  toast.style.padding = '12px';
+  toast.style.margin = '10px';
+  toast.style.borderRadius = '4px';
+  toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+  toast.style.maxWidth = '300px';
+  toast.style.position = 'relative';
+  toast.style.animation = 'slideIn 0.3s, fadeOut 0.5s 2.5s';
+  toast.style.borderLeft = type === 'error' ? '4px solid #ff5555' : 
+                           type === 'success' ? '4px solid #55cc55' : 
+                           '4px solid #5555ff';
+  
+  // Add keyframes for animations if they don't exist
+  if (!document.getElementById('toast-animations')) {
+    const style = document.createElement('style');
+    style.id = 'toast-animations';
+    style.textContent = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes fadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // Add message
+  toast.textContent = message;
+  
+  // Add to container
+  container.appendChild(toast);
+  
+  // Remove after animation completes
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 3000);
+}
