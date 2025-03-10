@@ -5,17 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relay World - A Nostr Adventure Game</title>
     
-    <!-- Simple fix for export/import errors -->
-    <script>
-    // Prevent errors from import/export statements
-    window.exports = {};
-    window.module = { exports: {} };
-    </script>
-    
-    <!-- Load essential libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    
     <!-- Load fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     
@@ -24,6 +13,8 @@
     <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/ui.css">
     <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/fix.css">
+    <link rel="stylesheet" href="css/wallet-toast.css">
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/icons/favicon.png">
@@ -152,19 +143,88 @@
         <div id="toast-container"></div>
     </div>
 
-    <!-- Core scripts -->
-    <script src="js/core/event-bus.js"></script>
-    <script src="js/core/config.js"></script>
-    <script src="js/core/relay-world-core.js"></script>
+    <!-- Load essential libraries first -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     
-    <!-- Utility scripts -->
-    <script src="js/utils/utils.js"></script>
-    <script src="js/utils/crypto-utils.js"></script>
-    <script src="js/utils/nostr-utils.js"></script>
-    <script src="js/utils/debug.js"></script>
+    <!-- ModuleSystem - handles ES module imports/exports without type="module" -->
+    <script>
+    // Create a module system to handle imports/exports
+    const ModuleSystem = {
+      modules: new Map(),
+      register: function(name, module) {
+        this.modules.set(name, module);
+        console.log(`Module registered: ${name}`);
+        return module;
+      },
+      get: function(name) {
+        return this.modules.get(name);
+      }
+    };
     
-    <!-- Main application script -->
-    <script src="js/main.js"></script>
+    // Global objects
+    window.EventBus = {
+      listeners: new Map(),
+      on: function(event, callback) {
+        if (!this.listeners.has(event)) this.listeners.set(event, []);
+        this.listeners.get(event).push(callback);
+        return this;
+      },
+      emit: function(event, data) {
+        if (this.listeners.has(event)) {
+          this.listeners.get(event).forEach(cb => {
+            try { cb(data); } catch(e) { console.error(e); }
+          });
+        }
+        return this;
+      },
+      off: function(event, callback) {
+        if (this.listeners.has(event)) {
+          const callbacks = this.listeners.get(event);
+          const index = callbacks.indexOf(callback);
+          if (index !== -1) callbacks.splice(index, 1);
+        }
+        return this;
+      }
+    };
+    
+    // Config manager
+    window.ConfigManager = {
+      configs: new Map(),
+      setConfig: function(key, value) {
+        this.configs.set(key, value);
+        window.EventBus.emit('config:change', { key, value });
+        return this;
+      },
+      getConfig: function(key, defaultValue = null) {
+        return this.configs.has(key) ? this.configs.get(key) : defaultValue;
+      }
+    };
+    
+    // RelayWorldCore
+    window.RelayWorldCore = {
+      modules: new Map(),
+      eventBus: window.EventBus,
+      config: window.ConfigManager,
+      registerModule: function(name, module) {
+        this.modules.set(name, module);
+        return this;
+      },
+      getModule: function(name) {
+        return this.modules.get(name);
+      },
+      setConfig: function(key, value) {
+        window.ConfigManager.setConfig(key, value);
+        return this;
+      },
+      getConfig: function(key, defaultValue = null) {
+        return window.ConfigManager.getConfig(key, defaultValue);
+      }
+    };
+    </script>
+    
+    <!-- Login script - must be loaded early -->
+    <script src="js/login.js"></script>
     
     <!-- 3D Engine Script -->
     <script src="js/relay-world-3d.js"></script>
