@@ -16,6 +16,14 @@
     <link rel="stylesheet" href="css/fix.css">
     <link rel="stylesheet" href="css/wallet-toast.css">
     
+    <!-- Essential fixes and libs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/134/three.min.js"></script>
+    
+    <!-- Critical fixes that need to run ASAP -->
+    <script src="js/three-simple-fix.js"></script>
+    <script src="js/login-fix.js"></script>
+    
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/icons/favicon.png">
     <meta name="description" content="Relay World: An interactive multiplayer game powered by Nostr protocol">
@@ -143,18 +151,13 @@
         <div id="toast-container"></div>
     </div>
 
-    <!-- Load essential libraries first -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    
-    <!-- ModuleSystem - handles ES module imports/exports without type="module" -->
+    <!-- ModuleSystem script - core functionality -->
     <script>
-    // Create a module system to handle imports/exports
-    const ModuleSystem = {
+    // Simple Module System to handle import/export statements
+    window.ModuleSystem = {
       modules: new Map(),
       register: function(name, module) {
         this.modules.set(name, module);
-        console.log(`Module registered: ${name}`);
         return module;
       },
       get: function(name) {
@@ -162,7 +165,7 @@
       }
     };
     
-    // Global objects
+    // Global objects needed by core system
     window.EventBus = {
       listeners: new Map(),
       on: function(event, callback) {
@@ -185,6 +188,13 @@
           if (index !== -1) callbacks.splice(index, 1);
         }
         return this;
+      },
+      once: function(event, callback) {
+        const onceWrapper = (data) => {
+          this.off(event, onceWrapper);
+          callback(data);
+        };
+        return this.on(event, onceWrapper);
       }
     };
     
@@ -223,10 +233,23 @@
     };
     </script>
     
-    <!-- Login script - must be loaded early -->
-    <script src="js/login.js"></script>
-    
     <!-- 3D Engine Script -->
     <script src="js/relay-world-3d.js"></script>
+    
+    <!-- Load fixed module scripts -->
+    <script>
+      // Fetch and register core modules
+      document.addEventListener('DOMContentLoaded', function() {
+        // Expose cryptoUtils globally to prevent errors
+        window.CryptoUtils = window.CryptoUtils || {};
+        
+        // Initialize core modules if needed
+        if (window.RelayWorldCore && window.RelayWorldCore.init) {
+          window.RelayWorldCore.init().catch(err => {
+            console.error("Failed to initialize RelayWorldCore:", err);
+          });
+        }
+      });
+    </script>
 </body>
 </html>
