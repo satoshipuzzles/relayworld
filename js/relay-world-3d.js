@@ -2,7 +2,8 @@
  * relay-world-3d.js
  * Enhanced 3D rendering engine for Relay World with improved ostrich models
  */
-
+// Ensure compatibility with older THREE.js versions
+document.write('<script src="js/three-compatibility.js"></script>');
 // Create the 3D game engine namespace
 const RelayWorld3D = {
     // Core properties
