@@ -31,6 +31,7 @@ const RelayWorld3D = {
             return !!(window.WebGLRenderingContext && 
                 (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
         } catch(e) {
+            console.warn('[RelayWorld3D] WebGL test failed:', e);
             return false;
         }
     },
@@ -47,8 +48,22 @@ const RelayWorld3D = {
         }
         
         // Check if WebGL is available
-        if (!this.isWebGLAvailable() || typeof THREE === 'undefined') {
-            console.warn("[RelayWorld3D] WebGL not available or THREE.js not loaded, using 2D fallback mode");
+        const webGLAvailable = this.isWebGLAvailable();
+        const threeJSAvailable = typeof THREE !== 'undefined';
+        
+        if (!webGLAvailable) {
+            console.warn("[RelayWorld3D] WebGL not available, using 2D fallback mode");
+            if (typeof showToast === 'function') {
+                showToast("Your browser doesn't support 3D graphics. Using 2D mode instead.", "warning");
+            }
+            return this.initFallbackMode();
+        }
+        
+        if (!threeJSAvailable) {
+            console.warn("[RelayWorld3D] THREE.js not loaded, using 2D fallback mode");
+            if (typeof showToast === 'function') {
+                showToast("3D graphics library couldn't be loaded. Using 2D mode instead.", "warning");
+            }
             return this.initFallbackMode();
         }
         
@@ -73,16 +88,25 @@ const RelayWorld3D = {
             this.camera.position.set(0, 15 * this.scaleFactor, 30 * this.scaleFactor);
             this.camera.lookAt(0, 0, 0);
             
-            // Create the renderer
-            this.renderer = new THREE.WebGLRenderer({ 
-                canvas: this.canvas,
-                antialias: true,
-                alpha: true
-            });
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.shadowMap.enabled = true;
-            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            // Create the renderer with proper error handling
+            try {
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: this.canvas,
+                    antialias: true,
+                    alpha: true
+                });
+                
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            } catch (e) {
+                console.error("[RelayWorld3D] Failed to create WebGL renderer:", e);
+                if (typeof showToast === 'function') {
+                    showToast("3D rendering failed. Using 2D mode instead.", "warning");
+                }
+                return this.initFallbackMode();
+            }
             
             // Add lighting
             this.setupLighting();
@@ -150,7 +174,7 @@ const RelayWorld3D = {
         
         // Show a message to the user about fallback mode
         if (typeof showToast === 'function') {
-            showToast("3D mode not available, using simplified 2D mode instead", "warning");
+            showToast("Using simplified 2D mode", "warning");
         }
         
         return true;
@@ -288,73 +312,83 @@ const RelayWorld3D = {
     createEnvironment: function() {
         if (this.fallbackMode) return;
         
-        // Grid helper
-        const gridSize = 200;
-        const gridDivisions = 40;
-        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x306230, 0x306230);
-        gridHelper.position.y = 0.1; // Slightly above ground to avoid z-fighting
-        this.scene.add(gridHelper);
-        
-        // Ground plane
-        const groundGeometry = new THREE.CircleGeometry(200, 64);
-        const groundMaterial = new THREE.MeshLambertMaterial({ 
-            color: 0x8bac0f, 
-            side: THREE.DoubleSide
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
-        
-        // Add some random terrain variation
-        this.addTerrainDetails();
-        
-        // Skybox
-        const skyboxGeometry = new THREE.SphereGeometry(400, 32, 32);
-        const skyboxMaterial = new THREE.MeshBasicMaterial({
-            color: 0x0a2f0a,
-            side: THREE.BackSide
-        });
-        const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
-        this.scene.add(skybox);
-        
-        // Add stars
-        this.addStars();
+        try {
+            // Grid helper
+            const gridSize = 200;
+            const gridDivisions = 40;
+            const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x306230, 0x306230);
+            gridHelper.position.y = 0.1; // Slightly above ground to avoid z-fighting
+            this.scene.add(gridHelper);
+            
+            // Ground plane
+            const groundGeometry = new THREE.CircleGeometry(200, 64);
+            const groundMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x8bac0f, 
+                side: THREE.DoubleSide
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            this.scene.add(ground);
+            
+            // Add some random terrain variation
+            this.addTerrainDetails();
+            
+            // Skybox
+            const skyboxGeometry = new THREE.SphereGeometry(400, 32, 32);
+            const skyboxMaterial = new THREE.MeshBasicMaterial({
+                color: 0x0a2f0a,
+                side: THREE.BackSide
+            });
+            const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+            this.scene.add(skybox);
+            
+            // Add stars
+            this.addStars();
+        } catch (error) {
+            console.error("[RelayWorld3D] Error creating environment:", error);
+        }
     },
     
     // Add terrain details for 3D mode
     addTerrainDetails: function() {
         if (this.fallbackMode) return;
         
-        // Add some rocks
-        for (let i = 0; i < 50; i++) {
-            const size = 1 + Math.random() * 3;
-            const rockGeometry = new THREE.DodecahedronGeometry(size, 0);
-            const rockMaterial = new THREE.MeshLambertMaterial({
-                color: 0x555555
-            });
+        try {
+            // Add some rocks
+            for (let i = 0; i < 50; i++) {
+                const size = 1 + Math.random() * 3;
+                const rockGeometry = new THREE.DodecahedronGeometry(size, 0);
+                const rockMaterial = new THREE.MeshLambertMaterial({
+                    color: 0x555555
+                });
+                
+                const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 30 + Math.random() * 150;
+                rock.position.x = Math.cos(angle) * distance;
+                rock.position.z = Math.sin(angle) * distance;
+                rock.position.y = size / 2;
+                rock.rotation.y = Math.random() * Math.PI * 2;
+                rock.castShadow = true;
+                rock.receiveShadow = true;
+                
+                this.scene.add(rock);
+            }
             
-            const rock = new THREE.Mesh(rockGeometry, rockMaterial);
-            const angle = Math.random() * Math.PI * 2;
-            const distance = 30 + Math.random() * 150;
-            rock.position.x = Math.cos(angle) * distance;
-            rock.position.z = Math.sin(angle) * distance;
-            rock.position.y = size / 2;
-            rock.rotation.y = Math.random() * Math.PI * 2;
-            rock.castShadow = true;
-            rock.receiveShadow = true;
-            
-            this.scene.add(rock);
-        }
-        
-        // Add some trees
-        for (let i = 0; i < 30; i++) {
-            const tree = this.createTree();
-            const angle = Math.random() * Math.PI * 2;
-            const distance = 50 + Math.random() * 130;
-            tree.position.x = Math.cos(angle) * distance;
-            tree.position.z = Math.sin(angle) * distance;
-            this.scene.add(tree);
+            // Add some trees
+            for (let i = 0; i < 30; i++) {
+                const tree = this.createTree();
+                if (tree) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = 50 + Math.random() * 130;
+                    tree.position.x = Math.cos(angle) * distance;
+                    tree.position.z = Math.sin(angle) * distance;
+                    this.scene.add(tree);
+                }
+            }
+        } catch (error) {
+            console.error("[RelayWorld3D] Error adding terrain details:", error);
         }
     },
     
@@ -362,67 +396,76 @@ const RelayWorld3D = {
     createTree: function() {
         if (this.fallbackMode) return null;
         
-        const tree = new THREE.Group();
-        
-        // Tree trunk
-        const trunkGeometry = new THREE.CylinderGeometry(0.5, 1, 5, 6);
-        const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-        const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        trunk.position.y = 2.5;
-        trunk.castShadow = true;
-        trunk.receiveShadow = true;
-        tree.add(trunk);
-        
-        // Tree foliage (multiple cones)
-        const foliageColors = [0x2E8B57, 0x3CB371, 0x228B22];
-        
-        for (let i = 0; i < 3; i++) {
-            const size = 4 - i * 0.5;
-            const height = 4;
-            const segments = 6;
-            const foliageGeometry = new THREE.ConeGeometry(size, height, segments);
-            const foliageMaterial = new THREE.MeshLambertMaterial({ 
-                color: foliageColors[i % foliageColors.length]
-            });
+        try {
+            const tree = new THREE.Group();
             
-            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-            foliage.position.y = 6 + i * 2.5;
-            foliage.castShadow = true;
-            foliage.receiveShadow = true;
-            tree.add(foliage);
+            // Tree trunk
+            const trunkGeometry = new THREE.CylinderGeometry(0.5, 1, 5, 6);
+            const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = 2.5;
+            trunk.castShadow = true;
+            trunk.receiveShadow = true;
+            tree.add(trunk);
+            
+            // Tree foliage (multiple cones)
+            const foliageColors = [0x2E8B57, 0x3CB371, 0x228B22];
+            
+            for (let i = 0; i < 3; i++) {
+                const size = 4 - i * 0.5;
+                const height = 4;
+                const segments = 6;
+                const foliageGeometry = new THREE.ConeGeometry(size, height, segments);
+                const foliageMaterial = new THREE.MeshLambertMaterial({ 
+                    color: foliageColors[i % foliageColors.length]
+                });
+                
+                const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+                foliage.position.y = 6 + i * 2.5;
+                foliage.castShadow = true;
+                foliage.receiveShadow = true;
+                tree.add(foliage);
+            }
+            
+            return tree;
+        } catch (error) {
+            console.error("[RelayWorld3D] Error creating tree:", error);
+            return null;
         }
-        
-        return tree;
     },
     
     // Add stars to the night sky for 3D mode
     addStars: function() {
         if (this.fallbackMode) return;
         
-        const starsGeometry = new THREE.BufferGeometry();
-        const starsMaterial = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 0.7,
-            transparent: true,
-            opacity: 0.8
-        });
-        
-        const starsVertices = [];
-        for (let i = 0; i < 3000; i++) {
-            const x = (Math.random() - 0.5) * 2000;
-            const y = (Math.random() - 0.5) * 2000;
-            const z = (Math.random() - 0.5) * 2000;
+        try {
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.7,
+                transparent: true,
+                opacity: 0.8
+            });
             
-            // Ensure stars are far away
-            const distance = Math.sqrt(x*x + y*y + z*z);
-            if (distance > 300) {
-                starsVertices.push(x, y, z);
+            const starsVertices = [];
+            for (let i = 0; i < 3000; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                
+                // Ensure stars are far away
+                const distance = Math.sqrt(x*x + y*y + z*z);
+                if (distance > 300) {
+                    starsVertices.push(x, y, z);
+                }
             }
+            
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+            const stars = new THREE.Points(starsGeometry, starsMaterial);
+            this.scene.add(stars);
+        } catch (error) {
+            console.error("[RelayWorld3D] Error adding stars:", error);
         }
-        
-        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-        const stars = new THREE.Points(starsGeometry, starsMaterial);
-        this.scene.add(stars);
     },
     
     // Setup event handlers
@@ -507,173 +550,188 @@ const RelayWorld3D = {
     createOstrich: function(pubkey, playerData = {}) {
         if (this.fallbackMode) return null;
         
-        // Create a group for the ostrich model
-        const ostrich = new THREE.Group();
-        
-        // Set up colors
-        const colors = {
-            body: 0x8B5CF6, // Rich purple for body
-            legs: 0x6D28D9  // Deep purple for legs
-        };
-        
-        // Body - simplified
-        const bodyGeometry = new THREE.CapsuleGeometry(1.5, 2, 8, 16);
-        const bodyMaterial = new THREE.MeshPhongMaterial({ 
-            color: colors.body,
-            shininess: 30
-        });
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        body.position.y = 2.5;
-        body.castShadow = true;
-        body.receiveShadow = true;
-        ostrich.add(body);
-        
-        // Legs - simplified
-        for (let i = -1; i <= 1; i += 2) {
-            const legGroup = new THREE.Group();
+        try {
+            // Create a group for the ostrich model
+            const ostrich = new THREE.Group();
             
-            const shinGeometry = new THREE.CylinderGeometry(0.2, 0.18, 2, 8);
-            const legMaterial = new THREE.MeshPhongMaterial({ 
-                color: colors.legs,
-                shininess: 20
+            // Set up colors
+            const colors = {
+                body: 0x8B5CF6, // Rich purple for body
+                legs: 0x6D28D9  // Deep purple for legs
+            };
+            
+            // Body - simplified
+            const bodyGeometry = new THREE.CapsuleGeometry(1.5, 2, 8, 16);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ 
+                color: colors.body,
+                shininess: 30
             });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 2.5;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            ostrich.add(body);
             
-            const shin = new THREE.Mesh(shinGeometry, legMaterial);
-            shin.position.y = -2.8;
-            shin.castShadow = true;
-            shin.receiveShadow = true;
-            legGroup.add(shin);
-            
-            legGroup.position.x = i * 0.7;
-            legGroup.position.y = 2.5;
-            
-            if (i < 0) {
-                ostrich.userData.leftLeg = legGroup;
-            } else {
-                ostrich.userData.rightLeg = legGroup;
+            // Legs - simplified
+            for (let i = -1; i <= 1; i += 2) {
+                const legGroup = new THREE.Group();
+                
+                const shinGeometry = new THREE.CylinderGeometry(0.2, 0.18, 2, 8);
+                const legMaterial = new THREE.MeshPhongMaterial({ 
+                    color: colors.legs,
+                    shininess: 20
+                });
+                
+                const shin = new THREE.Mesh(shinGeometry, legMaterial);
+                shin.position.y = -2.8;
+                shin.castShadow = true;
+                shin.receiveShadow = true;
+                legGroup.add(shin);
+                
+                legGroup.position.x = i * 0.7;
+                legGroup.position.y = 2.5;
+                
+                if (i < 0) {
+                    ostrich.userData.leftLeg = legGroup;
+                } else {
+                    ostrich.userData.rightLeg = legGroup;
+                }
+                
+                ostrich.add(legGroup);
             }
             
-            ostrich.add(legGroup);
+            // PLAYER LABEL - Name above head
+            const name = playerData.name || pubkey.substring(0, 8);
+            
+            // Create text sprite for the name
+            const textSprite = this.createTextSprite(name);
+            textSprite.position.y = 6;
+            ostrich.add(textSprite);
+            
+            // Scale model
+            ostrich.scale.set(this.scaleFactor, this.scaleFactor, this.scaleFactor);
+            
+            // Store animation properties
+            ostrich.userData = {
+                ...ostrich.userData,
+                walkSpeed: 0,
+                walkCycle: 0,
+                isWalking: false,
+                startY: 0,
+                isJumping: false
+            };
+            
+            // Add to scene
+            this.scene.add(ostrich);
+            
+            // Store player data
+            this.players.set(pubkey, {
+                model: ostrich,
+                data: playerData
+            });
+            
+            return ostrich;
+        } catch (error) {
+            console.error("[RelayWorld3D] Error creating player model:", error);
+            return null;
         }
-        
-        // PLAYER LABEL - Name above head
-        const name = playerData.name || pubkey.substring(0, 8);
-        
-        // Create text sprite for the name
-        const textSprite = this.createTextSprite(name);
-        textSprite.position.y = 6;
-        ostrich.add(textSprite);
-        
-        // Scale model
-        ostrich.scale.set(this.scaleFactor, this.scaleFactor, this.scaleFactor);
-        
-        // Store animation properties
-        ostrich.userData = {
-            ...ostrich.userData,
-            walkSpeed: 0,
-            walkCycle: 0,
-            isWalking: false,
-            startY: 0,
-            isJumping: false
-        };
-        
-        // Add to scene
-        this.scene.add(ostrich);
-        
-        // Store player data
-        this.players.set(pubkey, {
-            model: ostrich,
-            data: playerData
-        });
-        
-        return ostrich;
     },
     
     // Create a text sprite for player names
     createTextSprite: function(text) {
         if (this.fallbackMode) return null;
         
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        ctx.font = 'Bold 32px Arial';
-        
-        // Measure text width
-        const textWidth = ctx.measureText(text).width;
-        
-        // Set canvas dimensions with padding
-        canvas.width = textWidth + 20;
-        canvas.height = 50;
-        
-        // Clear canvas with transparent background
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw text
-        ctx.font = 'Bold 32px Arial';
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-        
-        // Create sprite material
-        const texture = new THREE.Texture(canvas);
-        texture.needsUpdate = true;
-        
-        const spriteMaterial = new THREE.SpriteMaterial({
-            map: texture,
-            transparent: true
-        });
-        
-        const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(canvas.width / 50, canvas.height / 50, 1);
-        
-        return sprite;
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'Bold 32px Arial';
+            
+            // Measure text width
+            const textWidth = ctx.measureText(text).width;
+            
+            // Set canvas dimensions with padding
+            canvas.width = textWidth + 20;
+            canvas.height = 50;
+            
+            // Clear canvas with transparent background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw text
+            ctx.font = 'Bold 32px Arial';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            
+            // Create sprite material
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            
+            const spriteMaterial = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true
+            });
+            
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.scale.set(canvas.width / 50, canvas.height / 50, 1);
+            
+            return sprite;
+        } catch (error) {
+            console.error("[RelayWorld3D] Error creating text sprite:", error);
+            return null;
+        }
     },
     
     // Create a collectible item for 3D mode
     createCollectible: function(x, y, z, value, type = 'gem') {
         if (this.fallbackMode) return null;
         
-        const collectible = new THREE.Group();
-        collectible.position.set(x, y, z);
-        
-        // Create a simple geometry for the collectible
-        const geometry = new THREE.OctahedronGeometry(1, 1);
-        const material = new THREE.MeshPhongMaterial({
-            color: 0x3B82F6,
-            shininess: 100,
-            emissive: 0x3B82F6,
-            emissiveIntensity: 0.2
-        });
-        
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        collectible.add(mesh);
-        
-        // Add glow effect
-        const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0x3B82F6,
-            transparent: true,
-            opacity: 0.2
-        });
-        
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        collectible.add(glow);
-        
-        // Animate the collectible
-        collectible.userData = {
-            type,
-            value,
-            startY: y,
-            rotationSpeed: 0.01 + Math.random() * 0.02,
-            glowPulse: Math.random() * Math.PI * 2 // Random starting phase
-        };
-        
-        // Add to scene and collectibles array
-        this.scene.add(collectible);
-        this.collectibles.push(collectible);
-        
-        return collectible;
+        try {
+            const collectible = new THREE.Group();
+            collectible.position.set(x, y, z);
+            
+            // Create a simple geometry for the collectible
+            const geometry = new THREE.OctahedronGeometry(1, 1);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x3B82F6,
+                shininess: 100,
+                emissive: 0x3B82F6,
+                emissiveIntensity: 0.2
+            });
+            
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            collectible.add(mesh);
+            
+            // Add glow effect
+            const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0x3B82F6,
+                transparent: true,
+                opacity: 0.2
+            });
+            
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            collectible.add(glow);
+            
+            // Animate the collectible
+            collectible.userData = {
+                type,
+                value,
+                startY: y,
+                rotationSpeed: 0.01 + Math.random() * 0.02,
+                glowPulse: Math.random() * Math.PI * 2 // Random starting phase
+            };
+            
+            // Add to scene and collectibles array
+            this.scene.add(collectible);
+            this.collectibles.push(collectible);
+            
+            return collectible;
+        } catch (error) {
+            console.error("[RelayWorld3D] Error creating collectible:", error);
+            return null;
+        }
     },
     
     // Create 2D collectibles
@@ -702,7 +760,14 @@ const RelayWorld3D = {
         const delta = this.clock.getDelta();
         this.update(delta);
         
-        this.renderer.render(this.scene, this.camera);
+        try {
+            this.renderer.render(this.scene, this.camera);
+        } catch (e) {
+            console.error("[RelayWorld3D] Error in render loop, falling back to 2D:", e);
+            // If rendering fails, switch to 2D mode
+            this.fallbackMode = true;
+            this.initFallbackMode();
+        }
     },
     
     // 2D Animation loop
@@ -719,114 +784,118 @@ const RelayWorld3D = {
     update: function(delta) {
         if (this.fallbackMode) return;
         
-        // Get current time for animations
-        const now = performance.now();
-        
-        // Update point light animation
-        if (this.pointLight) {
-            this.pointLight.position.y = this.pointLight.userData.originalY + Math.sin(now * 0.001) * 5;
-            this.pointLight.intensity = this.pointLight.userData.originalIntensity + Math.sin(now * 0.002) * 0.3;
-        }
-        
-        // Update collectible animations
-        this.collectibles.forEach(collectible => {
-            // Rotate the collectible
-            collectible.rotation.y += collectible.userData.rotationSpeed;
+        try {
+            // Get current time for animations
+            const now = performance.now();
             
-            // Bob up and down
-            collectible.position.y = collectible.userData.startY + Math.sin(now * 0.002) * 0.5;
-            
-            // Pulse glow effect
-            if (collectible.children.length > 1) {
-                const glow = collectible.children[1];
-                collectible.userData.glowPulse += 0.03;
-                
-                if (glow.material) {
-                    glow.material.opacity = 0.1 + Math.sin(collectible.userData.glowPulse) * 0.1;
-                    glow.scale.set(
-                        1.2 + Math.sin(collectible.userData.glowPulse) * 0.1,
-                        1.2 + Math.sin(collectible.userData.glowPulse) * 0.1,
-                        1.2 + Math.sin(collectible.userData.glowPulse) * 0.1
-                    );
-                }
+            // Update point light animation
+            if (this.pointLight) {
+                this.pointLight.position.y = this.pointLight.userData.originalY + Math.sin(now * 0.001) * 5;
+                this.pointLight.intensity = this.pointLight.userData.originalIntensity + Math.sin(now * 0.002) * 0.3;
             }
-        });
-        
-        // Update player models
-        if (window.RelayWorld) {
-            const playerModule = window.RelayWorldCore?.getModule('player');
-            if (playerModule && playerModule.pubkey) {
-                // Get current player
-                let player = this.players.get(playerModule.pubkey);
+            
+            // Update collectible animations
+            this.collectibles.forEach(collectible => {
+                // Rotate the collectible
+                collectible.rotation.y += collectible.userData.rotationSpeed;
                 
-                if (!player) {
-                    // Create player model if it doesn't exist
-                    const playerData = {
-                        name: playerModule.name || playerModule.pubkey.substring(0, 8),
-                        picture: playerModule.picture || this.defaultProfileImage,
-                        isCurrentPlayer: true
-                    };
+                // Bob up and down
+                collectible.position.y = collectible.userData.startY + Math.sin(now * 0.002) * 0.5;
+                
+                // Pulse glow effect
+                if (collectible.children.length > 1) {
+                    const glow = collectible.children[1];
+                    collectible.userData.glowPulse += 0.03;
                     
-                    this.createOstrich(playerModule.pubkey, playerData);
-                    player = this.players.get(playerModule.pubkey);
+                    if (glow.material) {
+                        glow.material.opacity = 0.1 + Math.sin(collectible.userData.glowPulse) * 0.1;
+                        glow.scale.set(
+                            1.2 + Math.sin(collectible.userData.glowPulse) * 0.1,
+                            1.2 + Math.sin(collectible.userData.glowPulse) * 0.1,
+                            1.2 + Math.sin(collectible.userData.glowPulse) * 0.1
+                        );
+                    }
                 }
-                
-                if (player && player.model) {
-                    const isMoving = playerModule.input?.up || playerModule.input?.down || 
-                                  playerModule.input?.left || playerModule.input?.right;
+            });
+            
+            // Update player models
+            if (window.RelayWorld) {
+                const playerModule = window.RelayWorldCore?.getModule('player');
+                if (playerModule && playerModule.pubkey) {
+                    // Get current player
+                    let player = this.players.get(playerModule.pubkey);
                     
-                    // Update player position based on game state
-                    player.model.position.x = (playerModule.x || 1500) - 1500;
-                    player.model.position.z = (playerModule.y || 1500) - 1500;
-                    
-                    // Update walking animation
-                    if (isMoving) {
-                        player.model.userData.isWalking = true;
-                        player.model.userData.walkCycle += delta * 5;
+                    if (!player) {
+                        // Create player model if it doesn't exist
+                        const playerData = {
+                            name: playerModule.name || playerModule.pubkey.substring(0, 8),
+                            picture: playerModule.picture || this.defaultProfileImage,
+                            isCurrentPlayer: true
+                        };
                         
-                        // Leg animation
-                        if (player.model.userData.leftLeg && player.model.userData.rightLeg) {
-                            player.model.userData.leftLeg.rotation.x = Math.sin(player.model.userData.walkCycle) * 0.4;
-                            player.model.userData.rightLeg.rotation.x = Math.sin(player.model.userData.walkCycle + Math.PI) * 0.4;
-                        }
-                        
-                        // Bob up and down while walking
-                        player.model.position.y = Math.abs(Math.sin(player.model.userData.walkCycle)) * 0.2;
-                        
-                        // Update player rotation based on movement direction
-                        if (playerModule.input.right) player.model.rotation.y = Math.PI * 0.5;
-                        if (playerModule.input.left) player.model.rotation.y = Math.PI * 1.5;
-                        if (playerModule.input.down) player.model.rotation.y = Math.PI;
-                        if (playerModule.input.up) player.model.rotation.y = 0;
-                        
-                        // Diagonal movement
-                        if (playerModule.input.up && playerModule.input.right) player.model.rotation.y = Math.PI * 0.25;
-                        if (playerModule.input.up && playerModule.input.left) player.model.rotation.y = Math.PI * 1.75;
-                        if (playerModule.input.down && playerModule.input.right) player.model.rotation.y = Math.PI * 0.75;
-                        if (playerModule.input.down && playerModule.input.left) player.model.rotation.y = Math.PI * 1.25;
-                    } else {
-                        // Reset to idle animation
-                        player.model.userData.isWalking = false;
-                        player.model.position.y = Math.sin(now * 0.001) * 0.05; // Slight idle bob
-                        
-                        // Reset legs
-                        if (player.model.userData.leftLeg && player.model.userData.rightLeg) {
-                            player.model.userData.leftLeg.rotation.x = 0;
-                            player.model.userData.rightLeg.rotation.x = 0;
-                        }
+                        this.createOstrich(playerModule.pubkey, playerData);
+                        player = this.players.get(playerModule.pubkey);
                     }
                     
-                    // Position camera to follow player
-                    this.camera.position.x = player.model.position.x - Math.sin(player.model.rotation.y) * 30;
-                    this.camera.position.z = player.model.position.z - Math.cos(player.model.rotation.y) * 30;
-                    this.camera.position.y = player.model.position.y + 20;
-                    this.camera.lookAt(
-                        player.model.position.x + Math.sin(player.model.rotation.y) * 10,
-                        player.model.position.y + 5,
-                        player.model.position.z + Math.cos(player.model.rotation.y) * 10
-                    );
+                    if (player && player.model) {
+                        const isMoving = playerModule.input?.up || playerModule.input?.down || 
+                                    playerModule.input?.left || playerModule.input?.right;
+                        
+                        // Update player position based on game state
+                        player.model.position.x = (playerModule.x || 1500) - 1500;
+                        player.model.position.z = (playerModule.y || 1500) - 1500;
+                        
+                        // Update walking animation
+                        if (isMoving) {
+                            player.model.userData.isWalking = true;
+                            player.model.userData.walkCycle += delta * 5;
+                            
+                            // Leg animation
+                            if (player.model.userData.leftLeg && player.model.userData.rightLeg) {
+                                player.model.userData.leftLeg.rotation.x = Math.sin(player.model.userData.walkCycle) * 0.4;
+                                player.model.userData.rightLeg.rotation.x = Math.sin(player.model.userData.walkCycle + Math.PI) * 0.4;
+                            }
+                            
+                            // Bob up and down while walking
+                            player.model.position.y = Math.abs(Math.sin(player.model.userData.walkCycle)) * 0.2;
+                            
+                            // Update player rotation based on movement direction
+                            if (playerModule.input.right) player.model.rotation.y = Math.PI * 0.5;
+                            if (playerModule.input.left) player.model.rotation.y = Math.PI * 1.5;
+                            if (playerModule.input.down) player.model.rotation.y = Math.PI;
+                            if (playerModule.input.up) player.model.rotation.y = 0;
+                            
+                            // Diagonal movement
+                            if (playerModule.input.up && playerModule.input.right) player.model.rotation.y = Math.PI * 0.25;
+                            if (playerModule.input.up && playerModule.input.left) player.model.rotation.y = Math.PI * 1.75;
+                            if (playerModule.input.down && playerModule.input.right) player.model.rotation.y = Math.PI * 0.75;
+                            if (playerModule.input.down && playerModule.input.left) player.model.rotation.y = Math.PI * 1.25;
+                        } else {
+                            // Reset to idle animation
+                            player.model.userData.isWalking = false;
+                            player.model.position.y = Math.sin(now * 0.001) * 0.05; // Slight idle bob
+                            
+                            // Reset legs
+                            if (player.model.userData.leftLeg && player.model.userData.rightLeg) {
+                                player.model.userData.leftLeg.rotation.x = 0;
+                                player.model.userData.rightLeg.rotation.x = 0;
+                            }
+                        }
+                        
+                        // Position camera to follow player
+                        this.camera.position.x = player.model.position.x - Math.sin(player.model.rotation.y) * 30;
+                        this.camera.position.z = player.model.position.z - Math.cos(player.model.rotation.y) * 30;
+                        this.camera.position.y = player.model.position.y + 20;
+                        this.camera.lookAt(
+                            player.model.position.x + Math.sin(player.model.rotation.y) * 10,
+                            player.model.position.y + 5,
+                            player.model.position.z + Math.cos(player.model.rotation.y) * 10
+                        );
+                    }
                 }
             }
+        } catch (error) {
+            console.error("[RelayWorld3D] Error in update loop:", error);
         }
     },
     
@@ -834,44 +903,48 @@ const RelayWorld3D = {
     update2D: function() {
         if (!this.fallbackMode) return;
         
-        // Update collectibles animation
-        this.collectibles.forEach(collectible => {
-            collectible.pulse += 0.05;
-            collectible.radius = 10 + Math.sin(collectible.pulse) * 2;
-        });
-        
-        // Update player position if in demo mode
-        if (this.demoInput && this.player2D) {
-            const speed = 5;
-            if (this.demoInput.up) this.player2D.y -= speed;
-            if (this.demoInput.down) this.player2D.y += speed;
-            if (this.demoInput.left) this.player2D.x -= speed;
-            if (this.demoInput.right) this.player2D.x += speed;
+        try {
+            // Update collectibles animation
+            this.collectibles.forEach(collectible => {
+                collectible.pulse += 0.05;
+                collectible.radius = 10 + Math.sin(collectible.pulse) * 2;
+            });
             
-            // Keep player within bounds
-            this.player2D.x = Math.max(this.player2D.radius, Math.min(this.canvas.width - this.player2D.radius, this.player2D.x));
-            this.player2D.y = Math.max(this.player2D.radius, Math.min(this.canvas.height - this.player2D.radius, this.player2D.y));
-        }
-        
-        // Update player position based on game state if available
-        const playerModule = window.RelayWorldCore?.getModule('player');
-        if (playerModule && playerModule.input && this.player2D) {
-            const speed = 5;
-            if (playerModule.input.up) this.player2D.y -= speed;
-            if (playerModule.input.down) this.player2D.y += speed;
-            if (playerModule.input.left) this.player2D.x -= speed;
-            if (playerModule.input.right) this.player2D.x += speed;
+            // Update player position if in demo mode
+            if (this.demoInput && this.player2D) {
+                const speed = 5;
+                if (this.demoInput.up) this.player2D.y -= speed;
+                if (this.demoInput.down) this.player2D.y += speed;
+                if (this.demoInput.left) this.player2D.x -= speed;
+                if (this.demoInput.right) this.player2D.x += speed;
+                
+                // Keep player within bounds
+                this.player2D.x = Math.max(this.player2D.radius, Math.min(this.canvas.width - this.player2D.radius, this.player2D.x));
+                this.player2D.y = Math.max(this.player2D.radius, Math.min(this.canvas.height - this.player2D.radius, this.player2D.y));
+            }
             
-            // Keep player within bounds
-            this.player2D.x = Math.max(this.player2D.radius, Math.min(this.canvas.width - this.player2D.radius, this.player2D.x));
-            this.player2D.y = Math.max(this.player2D.radius, Math.min(this.canvas.height - this.player2D.radius, this.player2D.y));
-            
-            // Update game module position
-            playerModule.x = this.player2D.x;
-            playerModule.y = this.player2D.y;
-            
-            // Check collectible collisions
-            this.checkCollectibles2D();
+            // Update player position based on game state if available
+            const playerModule = window.RelayWorldCore?.getModule('player');
+            if (playerModule && playerModule.input && this.player2D) {
+                const speed = 5;
+                if (playerModule.input.up) this.player2D.y -= speed;
+                if (playerModule.input.down) this.player2D.y += speed;
+                if (playerModule.input.left) this.player2D.x -= speed;
+                if (playerModule.input.right) this.player2D.x += speed;
+                
+                // Keep player within bounds
+                this.player2D.x = Math.max(this.player2D.radius, Math.min(this.canvas.width - this.player2D.radius, this.player2D.x));
+                this.player2D.y = Math.max(this.player2D.radius, Math.min(this.canvas.height - this.player2D.radius, this.player2D.y));
+                
+                // Update game module position
+                playerModule.x = this.player2D.x;
+                playerModule.y = this.player2D.y;
+                
+                // Check collectible collisions
+                this.checkCollectibles2D();
+            }
+        } catch (error) {
+            console.error("[RelayWorld3D] Error in 2D update loop:", error);
         }
     },
     
@@ -879,60 +952,64 @@ const RelayWorld3D = {
     render2D: function() {
         if (!this.fallbackMode || !this.ctx2d) return;
         
-        // Clear canvas
-        this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Draw grid background
-        this.drawGrid2D();
-        
-        // Draw collectibles
-        this.collectibles.forEach(collectible => {
-            this.ctx2d.fillStyle = collectible.color;
-            this.ctx2d.beginPath();
-            this.ctx2d.arc(collectible.x, collectible.y, collectible.radius, 0, Math.PI * 2);
-            this.ctx2d.fill();
+        try {
+            // Clear canvas
+            this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
             
-            // Draw value
-            this.ctx2d.fillStyle = "#FFFFFF";
-            this.ctx2d.font = "10px Arial";
-            this.ctx2d.textAlign = "center";
-            this.ctx2d.fillText(collectible.value, collectible.x, collectible.y + 4);
-        });
-        
-        // Draw player
-        if (this.player2D) {
-            // Draw player circle
-            this.ctx2d.fillStyle = this.player2D.color;
-            this.ctx2d.beginPath();
-            this.ctx2d.arc(this.player2D.x, this.player2D.y, this.player2D.radius, 0, Math.PI * 2);
-            this.ctx2d.fill();
+            // Draw grid background
+            this.drawGrid2D();
             
-            // Draw player name
+            // Draw collectibles
+            this.collectibles.forEach(collectible => {
+                this.ctx2d.fillStyle = collectible.color;
+                this.ctx2d.beginPath();
+                this.ctx2d.arc(collectible.x, collectible.y, collectible.radius, 0, Math.PI * 2);
+                this.ctx2d.fill();
+                
+                // Draw value
+                this.ctx2d.fillStyle = "#FFFFFF";
+                this.ctx2d.font = "10px Arial";
+                this.ctx2d.textAlign = "center";
+                this.ctx2d.fillText(collectible.value, collectible.x, collectible.y + 4);
+            });
+            
+            // Draw player
+            if (this.player2D) {
+                // Draw player circle
+                this.ctx2d.fillStyle = this.player2D.color;
+                this.ctx2d.beginPath();
+                this.ctx2d.arc(this.player2D.x, this.player2D.y, this.player2D.radius, 0, Math.PI * 2);
+                this.ctx2d.fill();
+                
+                // Draw player name
+                this.ctx2d.fillStyle = "#FFFFFF";
+                this.ctx2d.font = "14px 'Press Start 2P', sans-serif";
+                this.ctx2d.textAlign = "center";
+                this.ctx2d.fillText(this.player2D.name, this.player2D.x, this.player2D.y - 30);
+                
+                // Draw player score
+                const playerModule = window.RelayWorldCore?.getModule('player');
+                if (playerModule) {
+                    this.ctx2d.fillStyle = "#FFFF00";
+                    this.ctx2d.font = "12px 'Press Start 2P', sans-serif";
+                    this.ctx2d.fillText(`Score: ${playerModule.score || 0}`, this.player2D.x, this.player2D.y + 40);
+                }
+            }
+            
+            // Draw coordinates
             this.ctx2d.fillStyle = "#FFFFFF";
+            this.ctx2d.font = "12px Arial";
+            this.ctx2d.textAlign = "left";
+            this.ctx2d.fillText(`X: ${this.player2D ? Math.round(this.player2D.x) : 0}, Y: ${this.player2D ? Math.round(this.player2D.y) : 0}`, 10, 20);
+            
+            // Draw fallback mode notice
+            this.ctx2d.fillStyle = "rgba(255,215,0,0.7)";
             this.ctx2d.font = "14px 'Press Start 2P', sans-serif";
             this.ctx2d.textAlign = "center";
-            this.ctx2d.fillText(this.player2D.name, this.player2D.x, this.player2D.y - 30);
-            
-            // Draw player score
-            const playerModule = window.RelayWorldCore?.getModule('player');
-            if (playerModule) {
-                this.ctx2d.fillStyle = "#FFFF00";
-                this.ctx2d.font = "12px 'Press Start 2P', sans-serif";
-                this.ctx2d.fillText(`Score: ${playerModule.score || 0}`, this.player2D.x, this.player2D.y + 40);
-            }
+            this.ctx2d.fillText("2D FALLBACK MODE", this.canvas.width / 2, 30);
+        } catch (error) {
+            console.error("[RelayWorld3D] Error in 2D render loop:", error);
         }
-        
-        // Draw coordinates
-        this.ctx2d.fillStyle = "#FFFFFF";
-        this.ctx2d.font = "12px Arial";
-        this.ctx2d.textAlign = "left";
-        this.ctx2d.fillText(`X: ${this.player2D ? Math.round(this.player2D.x) : 0}, Y: ${this.player2D ? Math.round(this.player2D.y) : 0}`, 10, 20);
-        
-        // Draw fallback mode notice
-        this.ctx2d.fillStyle = "rgba(255,215,0,0.7)";
-        this.ctx2d.font = "14px 'Press Start 2P', sans-serif";
-        this.ctx2d.textAlign = "center";
-        this.ctx2d.fillText("2D FALLBACK MODE", this.canvas.width / 2, 30);
     },
     
     // Draw 2D grid background
@@ -1007,24 +1084,28 @@ const RelayWorld3D = {
             return this.spawnRandomCollectibles2D(count);
         }
         
-        // Clear existing collectibles
-        this.collectibles.forEach(collectible => {
-            this.scene.remove(collectible);
-        });
-        this.collectibles = [];
-        
-        // Spawn new collectibles
-        for (let i = 0; i < count; i++) {
-            const x = (Math.random() - 0.5) * 150;
-            const z = (Math.random() - 0.5) * 150;
-            const y = 2 + Math.random() * 2;
-            const value = Math.floor(Math.random() * 50) + 10;
-            const type = 'gem';
+        try {
+            // Clear existing collectibles
+            this.collectibles.forEach(collectible => {
+                this.scene.remove(collectible);
+            });
+            this.collectibles = [];
             
-            this.createCollectible(x, y, z, value, type);
+            // Spawn new collectibles
+            for (let i = 0; i < count; i++) {
+                const x = (Math.random() - 0.5) * 150;
+                const z = (Math.random() - 0.5) * 150;
+                const y = 2 + Math.random() * 2;
+                const value = Math.floor(Math.random() * 50) + 10;
+                const type = 'gem';
+                
+                this.createCollectible(x, y, z, value, type);
+            }
+            
+            console.log(`[RelayWorld3D] Spawned ${count} collectibles in 3D mode`);
+        } catch (error) {
+            console.error("[RelayWorld3D] Error spawning collectibles:", error);
         }
-        
-        console.log(`[RelayWorld3D] Spawned ${count} collectibles in 3D mode`);
     },
     
     // Spawn random collectibles for 2D mode
