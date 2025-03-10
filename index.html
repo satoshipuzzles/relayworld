@@ -5,6 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relay World - A Nostr Adventure Game</title>
 
+    <!-- Load fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- Base CSS files - fixed paths -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/ui.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/login-fix.css">
+    <link rel="stylesheet" href="css/wallet-toast.css">
+    <link rel="stylesheet" href="css/fix.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/icons/favicon.png">
+    <meta name="description" content="Relay World: An interactive multiplayer game powered by Nostr protocol">
+
+    <!-- Load CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
     <!-- Load THREE.js with error handling -->
     <script>
         // Try to load THREE.js
@@ -22,222 +41,10 @@
         } catch (e) {
             console.warn("Error setting up THREE.js:", e);
         }
-        
-        // Setup simple fixes once THREE is available
-        window.applyThreeJsFixes = function() {
-            if (typeof THREE !== 'undefined') {
-                console.log("Applying THREE.js fixes");
-                
-                // Fix CapsuleGeometry if missing
-                if (!THREE.CapsuleGeometry) {
-                    THREE.CapsuleGeometry = function(radius, height, radiusSegments, heightSegments) {
-                        // Just use a cylinder as fallback
-                        return new THREE.CylinderGeometry(radius, radius, height, radiusSegments || 8);
-                    };
-                    console.log("Added CapsuleGeometry replacement");
-                }
-                
-                // Fix flatShading issue
-                if (THREE.MeshLambertMaterial) {
-                    const originalMeshLambertMaterial = THREE.MeshLambertMaterial;
-                    THREE.MeshLambertMaterial = function(params) {
-                        if (params && params.flatShading !== undefined) {
-                            const newParams = Object.assign({}, params);
-                            delete newParams.flatShading;
-                            return new originalMeshLambertMaterial(newParams);
-                        }
-                        return new originalMeshLambertMaterial(params);
-                    };
-                    console.log("Fixed MeshLambertMaterial");
-                }
-                
-                return true;
-            }
-            return false;
-        };
-        
-        // Try to apply fixes immediately, or after load
-        if (!window.applyThreeJsFixes()) {
-            window.addEventListener('load', window.applyThreeJsFixes);
-        }
     </script>
     
-    <!-- Load CryptoJS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    
-    <!-- Load fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    
-    <!-- Base CSS files -->
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/game.css">
-    <link rel="stylesheet" href="css/ui.css">
-    <link rel="stylesheet" href="css/animations.css">
-    
-    <!-- Critical login fixes -->
-    <style>
-        /* Fix login screen and buttons */
-        #login-screen {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            align-items: center !important;
-            z-index: 9999 !important;
-            background-color: var(--color-dark) !important;
-            pointer-events: auto !important;
-        }
-        
-        #login-panel {
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            background-color: var(--color-light) !important; 
-            border: 8px solid var(--color-medium) !important;
-            padding: 24px !important;
-            max-width: 90% !important;
-            width: 500px !important;
-            box-shadow: 0 0 0 4px var(--color-dark), 8px 8px 0 rgba(0,0,0,0.5) !important;
-            position: relative !important;
-            z-index: 10000 !important;
-            pointer-events: auto !important;
-        }
-        
-        #login-options {
-            width: 100% !important;
-            margin: 20px 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 15px !important;
-            z-index: 10001 !important;
-            pointer-events: auto !important;
-        }
-        
-        #login-button, #guest-login-button {
-            cursor: pointer !important;
-            position: relative !important;
-            z-index: 10001 !important;
-            pointer-events: auto !important;
-            width: 100% !important;
-            font-family: 'Press Start 2P', system-ui, sans-serif !important;
-        }
-        
-        /* Make sure login buttons are extremely visible and clickable */
-        #login-button {
-            background-color: var(--color-primary, #8bac0f) !important;
-            color: var(--color-foreground, #e0f8d0) !important;
-            border: 4px solid var(--color-dark, #0f380f) !important;
-            padding: 12px 24px !important;
-            font-size: 1rem !important;
-            text-transform: uppercase !important;
-            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3) !important;
-        }
-        
-        #login-button:hover {
-            transform: translateY(-2px) !important;
-            background-color: var(--color-lighter, #9bbc0f) !important;
-        }
-        
-        #guest-login-button {
-            background-color: var(--color-secondary, #306230) !important;
-            color: var(--color-very-light, #e0f8d0) !important;
-            border: 3px solid var(--color-dark, #0f380f) !important;
-            padding: 10px 20px !important;
-            font-size: 0.875rem !important;
-            box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.3) !important;
-        }
-        
-        #guest-login-button:hover {
-            transform: translateY(-2px) !important;
-            background-color: var(--color-medium, #306230) !important;
-        }
-        
-        /* Animations */
-        @keyframes float {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0); }
-        }
-        
-        @keyframes triforce-spin {
-            0% { transform: rotateY(0deg); }
-            100% { transform: rotateY(360deg); }
-        }
-        
-        @keyframes triforce-pulse {
-            0% { opacity: 0.8; }
-            100% { opacity: 1; filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.9)); }
-        }
-        
-        @keyframes sound-wave {
-            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
-        }
-        
-        /* Apply animations */
-        #login-panel {
-            animation: float 3s ease-in-out infinite !important;
-        }
-        
-        .triforce-container {
-            animation: triforce-spin 10s linear infinite !important;
-        }
-        
-        .triforce {
-            animation: triforce-pulse 2s ease-in-out infinite alternate !important;
-        }
-        
-        /* Toast styles */
-        #toast-container {
-            position: fixed !important;
-            top: 20px !important;
-            right: 20px !important;
-            z-index: 20000 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: flex-end !important;
-            gap: 10px !important;
-            pointer-events: none !important;
-        }
-        
-        .toast {
-            background-color: var(--color-light) !important;
-            color: var(--color-dark) !important;
-            padding: 12px 16px !important;
-            border-radius: 4px !important;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2) !important;
-            max-width: 300px !important;
-            animation: toast-in 0.3s, toast-out 0.5s 2.5s forwards !important;
-        }
-        
-        .toast.success {
-            background-color: var(--color-very-light) !important;
-            border-left: 4px solid var(--color-success) !important;
-        }
-        
-        .toast.error {
-            background-color: #fdd !important;
-            border-left: 4px solid var(--color-danger) !important;
-        }
-        
-        @keyframes toast-in {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        
-        @keyframes toast-out {
-            from { opacity: 1; }
-            to { opacity: 0; transform: translateY(-20px); }
-        }
-    </style>
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="assets/icons/favicon.png">
-    <meta name="description" content="Relay World: An interactive multiplayer game powered by Nostr protocol">
+    <!-- Integration fixes script - load before any other game script -->
+    <script src="js/relay-world-fixes.js"></script>
 </head>
 <body>
     <div id="game-container">
@@ -360,326 +167,63 @@
         <div id="toast-container"></div>
     </div>
 
-    <!-- Toast notification system -->
-    <script>
-    // Simple toast notification system
-    function showToast(message, type = '') {
-        const toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            // Create container if it doesn't exist
-            const container = document.createElement('div');
-            container.id = 'toast-container';
-            document.body.appendChild(container);
-            return showToast(message, type); // Try again
-        }
-        
-        const toast = document.createElement('div');
-        toast.className = 'toast ' + (type || '');
-        toast.textContent = message;
-        
-        toastContainer.appendChild(toast);
-        
-        // Remove after 3 seconds
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        }, 3000);
-    }
+    <!-- Core JavaScript Files - Load in the right order -->
+    <script src="js/core/event-bus.js"></script>
+    <script src="js/core/config.js"></script>
+    <script src="js/core/relay-world-core.js"></script>
     
-    // Make showToast globally available
-    window.showToast = showToast;
-    </script>
-
-    <!-- ModuleSystem script - core functionality -->
-    <script>
-    // Simple Module System to handle import/export statements
-    window.ModuleSystem = {
-      modules: new Map(),
-      register: function(name, module) {
-        this.modules.set(name, module);
-        return module;
-      },
-      get: function(name) {
-        return this.modules.get(name);
-      }
-    };
+    <!-- Utilities -->
+    <script src="js/utils/utils.js"></script>
+    <script src="js/utils/crypto-utils.js"></script>
+    <script src="js/utils/nostr-utils.js"></script>
+    <script src="js/utils/debug.js"></script>
     
-    // Global objects needed by core system
-    window.EventBus = {
-      listeners: new Map(),
-      init: function() {
-        console.log("EventBus initialized");
-        return this;
-      },
-      on: function(event, callback) {
-        if (!this.listeners.has(event)) this.listeners.set(event, []);
-        this.listeners.get(event).push(callback);
-        return this;
-      },
-      emit: function(event, data) {
-        if (this.listeners.has(event)) {
-          this.listeners.get(event).forEach(cb => {
-            try { cb(data); } catch(e) { console.error(e); }
-          });
-        }
-        return this;
-      },
-      off: function(event, callback) {
-        if (this.listeners.has(event)) {
-          const callbacks = this.listeners.get(event);
-          const index = callbacks.indexOf(callback);
-          if (index !== -1) callbacks.splice(index, 1);
-        }
-        return this;
-      },
-      once: function(event, callback) {
-        const onceWrapper = (data) => {
-          this.off(event, onceWrapper);
-          callback(data);
-        };
-        return this.on(event, onceWrapper);
-      }
-    };
+    <!-- THREE.js compatibility scripts -->
+    <script src="js/THREE.js"></script>
     
-    // Config manager
-    window.ConfigManager = {
-      configs: new Map(),
-      init: function() {
-        console.log("ConfigManager initialized");
-        return this;
-      },
-      setConfig: function(key, value) {
-        this.configs.set(key, value);
-        window.EventBus.emit('config:change', { key, value });
-        return this;
-      },
-      getConfig: function(key, defaultValue = null) {
-        return this.configs.has(key) ? this.configs.get(key) : defaultValue;
-      }
-    };
-    
-    // RelayWorldCore
-    window.RelayWorldCore = {
-      modules: new Map(),
-      eventBus: window.EventBus,
-      config: window.ConfigManager,
-      init: async function() {
-        console.log("RelayWorldCore initializing...");
-        await this.eventBus.init();
-        await this.config.init();
-        
-        // Initialize all modules in order
-        for (const [name, module] of this.modules.entries()) {
-          if (typeof module.init === 'function') {
-            try {
-              console.log(`Initializing module: ${name}`);
-              await module.init();
-              console.log(`Module ${name} initialized`);
-            } catch (err) {
-              console.error(`Failed to initialize module ${name}:`, err);
-            }
-          }
-        }
-        
-        console.log("RelayWorldCore initialized");
-        this.eventBus.emit('core:ready', null);
-        return this;
-      },
-      registerModule: function(name, module) {
-        this.modules.set(name, module);
-        console.log(`Module registered: ${name}`);
-        return this;
-      },
-      getModule: function(name) {
-        return this.modules.get(name);
-      },
-      setConfig: function(key, value) {
-        window.ConfigManager.setConfig(key, value);
-        return this;
-      },
-      getConfig: function(key, defaultValue = null) {
-        return window.ConfigManager.getConfig(key, defaultValue);
-      }
-    };
-    
-    // CryptoUtils basic functionality (to prevent errors)
-    window.CryptoUtils = {
-      randomHex: function(length) {
-        const len = length || 64;
-        let result = "";
-        for (let i = 0; i < len / 2; i++) {
-          result += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
-        }
-        return result;
-      }
-    };
-    
-    // Simple player module
-    window.RelayWorldCore.registerModule('player', {
-      name: "player",
-      description: "Player state and actions",
-      pubkey: null,
-      x: 1500,
-      y: 1500,
-      speed: 200,
-      score: 0,
-      input: { up: false, down: false, left: false, right: false },
-      init: function() {
-        console.log("Player module initialized");
-        
-        // Set up keyboard input
-        window.addEventListener('keydown', (e) => {
-          if (e.key === 'ArrowUp' || e.key === 'w') this.input.up = true;
-          if (e.key === 'ArrowDown' || e.key === 's') this.input.down = true;
-          if (e.key === 'ArrowLeft' || e.key === 'a') this.input.left = true;
-          if (e.key === 'ArrowRight' || e.key === 'd') this.input.right = true;
-        });
-        
-        window.addEventListener('keyup', (e) => {
-          if (e.key === 'ArrowUp' || e.key === 'w') this.input.up = false;
-          if (e.key === 'ArrowDown' || e.key === 's') this.input.down = false;
-          if (e.key === 'ArrowLeft' || e.key === 'a') this.input.left = false;
-          if (e.key === 'ArrowRight' || e.key === 'd') this.input.right = false;
-        });
-        
-        return true;
-      }
-    });
-    
-    // Register a simple UI module
-    window.RelayWorldCore.registerModule('ui', {
-      name: "ui",
-      description: "User interface",
-      init: function() {
-        console.log("UI module initialized");
-        return true;
-      },
-      showToast: showToast,
-      hideLoginScreen: function() {
-        const loginScreen = document.getElementById('login-screen');
-        if (loginScreen) {
-          loginScreen.style.opacity = '0';
-          loginScreen.style.transition = 'opacity 0.5s ease';
-          setTimeout(() => {
-            loginScreen.classList.add('hide');
-            loginScreen.style.opacity = '1';
-          }, 500);
-        }
-      },
-      showGameUI: function() {
-        ['top-bar', 'player-profile', 'leaderboard-container', 'chat-container'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.classList.remove('hide');
-        });
-        
-        // Show mobile controls on mobile devices
-        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-          const mobileControls = document.getElementById('mobile-controls');
-          if (mobileControls) mobileControls.classList.remove('hide');
-        }
-      },
-      updatePlayerProfile: function() {
-        const playerModule = window.RelayWorldCore.getModule('player');
-        if (!playerModule) return;
-        
-        const nameEl = document.getElementById('player-profile-name');
-        const npubEl = document.getElementById('player-profile-npub');
-        const scoreEl = document.getElementById('profile-score');
-        const scoreDisplay = document.getElementById('score-display');
-        
-        if (nameEl && playerModule.name) nameEl.textContent = playerModule.name;
-        if (npubEl && playerModule.pubkey) npubEl.textContent = playerModule.pubkey.substring(0, 8);
-        if (scoreEl) scoreEl.textContent = playerModule.score || 0;
-        if (scoreDisplay) scoreDisplay.textContent = `Score: ${playerModule.score || 0}`;
-      }
-    });
-    
-    // Simple game module that immediately initializes a relay world instance
-    window.RelayWorldCore.registerModule('game', {
-      name: "game",
-      description: "Game loop and mechanics",
-      canvas: null,
-      ctx: null,
-      running: false,
-      initialized: false,
-      init: function() {
-        console.log("Game module initialized");
-        this.initialized = true;
-        // Initialize canvas
-        this.canvas = document.getElementById('game-canvas');
-        if (this.canvas) {
-          this.ctx = this.canvas.getContext('2d');
-          this.canvas.width = window.innerWidth;
-          this.canvas.height = window.innerHeight;
-          window.addEventListener('resize', () => {
-            this.canvas.width = window.innerWidth;
-            this.canvas.height = window.innerHeight;
-          });
-        }
-        
-        // Signal that we're ready for the 3D engine
-        window.RelayWorld = { 
-          initialized: true,
-          version: '1.0.0'
-        };
-        
-        return true;
-      },
-      start: function() {
-        if (this.running) return;
-        this.running = true;
-        console.log("Game started");
-        return true;
-      }
-    });
-    </script>
-
-    <!-- Login script (with improved debugging) -->
+    <!-- Login module -->
     <script src="js/login.js"></script>
     
-    <!-- 3D Engine Script (load last) -->
+    <!-- Main game initializer -->
+    <script src="js/main.js"></script>
+    
+    <!-- 3D Engine -->
     <script src="js/relay-world-3d.js"></script>
     
-    <!-- Force login handlers to attach again after all scripts are loaded -->
+    <!-- Final initialization script -->
     <script>
-    // Force init login handlers after everything is loaded
-    window.addEventListener('load', function() {
-      console.log("Window loaded, forcing login handlers to attach");
-      if (window.LoginModule && window.LoginModule.initLoginHandlers) {
-        window.LoginModule.initLoginHandlers();
-      }
-      
-      // Add debug overlay that forces login on click (debug only)
-      if (window.location.search.includes('debug=true')) {
-        const debugOverlay = document.createElement('div');
-        debugOverlay.style.position = 'fixed';
-        debugOverlay.style.top = '0';
-        debugOverlay.style.left = '0';
-        debugOverlay.style.width = '100%';
-        debugOverlay.style.height = '100%';
-        debugOverlay.style.backgroundColor = 'rgba(255,0,0,0.2)';
-        debugOverlay.style.zIndex = '30000';
-        debugOverlay.style.cursor = 'pointer';
-        debugOverlay.innerHTML = '<div style="position:absolute;top:10px;left:10px;background:red;color:white;padding:5px;border-radius:5px;">DEBUG MODE - CLICK ANYWHERE TO FORCE GUEST LOGIN</div>';
-        debugOverlay.addEventListener('click', function() {
-          debugOverlay.remove();
-          if (window.LoginModule && window.LoginModule.handleGuestLogin) {
-            window.LoginModule.handleGuestLogin();
-          }
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM loaded, checking for RelayWorld initialization");
+            
+            // Make sure all critical components are defined
+            if (!window.EventBus) window.EventBus = {};
+            if (!window.ConfigManager) window.ConfigManager = {};
+            if (!window.RelayWorldCore) window.RelayWorldCore = { modules: new Map() };
+            
+            // Wait a short time for all modules to register
+            setTimeout(function() {
+                if (!window.RelayWorld.initialized) {
+                    console.log("Starting RelayWorld initialization");
+                    try {
+                        // Initialize core system if not already done
+                        if (window.RelayWorldCore.init && typeof window.RelayWorldCore.init === 'function') {
+                            window.RelayWorldCore.init().catch(err => {
+                                console.error("RelayWorld initialization failed:", err);
+                                window.showToast("Initialization failed. Please reload the page.", "error");
+                            });
+                        }
+                        window.RelayWorld.initialized = true;
+                    } catch (e) {
+                        console.error("Error initializing RelayWorld:", e);
+                    }
+                }
+                
+                // Make sure login handlers are attached
+                if (window.unifiedLoginHandler) {
+                    window.unifiedLoginHandler();
+                }
+            }, 500);
         });
-        document.body.appendChild(debugOverlay);
-      }
-    });
-    
-    // Initialize core system after all modules are registered
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log("DOM loaded, initializing RelayWorldCore");
-      window.RelayWorldCore.init().catch(err => {
-        console.error("Failed to initialize RelayWorldCore:", err);
-        showToast("Failed to initialize game. Please reload the page.", "error");
-      });
-    });
     </script>
 </body>
 </html>
