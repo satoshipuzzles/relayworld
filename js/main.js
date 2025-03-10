@@ -32,22 +32,67 @@ const AuthModule = {
     // Initialize module
     init: function() {
         console.log("[Auth] Initializing authentication module...");
+        
+        // Setup login button listeners
+        this._setupLoginHandlers();
+        
         this.initialized = true;
         console.log("[Auth] Authentication module initialized");
         return true;
     },
     
+    // Set up login button listeners
+    _setupLoginHandlers: function() {
+        // NIP-07 Login
+        const loginButton = document.getElementById('login-button');
+        if (loginButton) {
+            loginButton.addEventListener('click', () => this.loginWithNostr());
+        }
+        
+        // Guest Login
+        const guestLoginButton = document.getElementById('guest-login-button');
+        if (guestLoginButton) {
+            guestLoginButton.addEventListener('click', () => this.loginAsGuest());
+        }
+    },
+    
     // Login with NIP-07 extension
     loginWithNostr: async function(providedPubkey) {
         try {
+            const loginLoader = document.getElementById('login-loader');
+            const loginStatus = document.getElementById('login-status');
+            
+            if (loginLoader) loginLoader.classList.remove('hide');
+            if (loginStatus) loginStatus.textContent = 'Looking for Nostr extension...';
+            
             let pubkey = providedPubkey;
             
-            if (!pubkey && window.nostr) {
+            // Check if Nostr extension is available
+            if (!window.nostr) {
+                const uiModule = RelayWorldCore.getModule('ui');
+                if (uiModule && uiModule.showToast) {
+                    uiModule.showToast('Nostr extension not found. Please install a NIP-07 extension like Alby or nos2x.', 'error');
+                }
+                if (loginStatus) loginStatus.textContent = 'Nostr extension not found';
+                if (loginLoader) loginLoader.classList.add('hide');
+                return false;
+            }
+            
+            if (!pubkey) {
+                if (loginStatus) loginStatus.textContent = 'Requesting pubkey...';
                 pubkey = await window.nostr.getPublicKey();
             }
             
             if (!pubkey) {
                 throw new Error("No public key available");
+            }
+            
+            if (loginStatus) loginStatus.textContent = 'Got pubkey, logging in...';
+            
+            // Animate sound wave
+            const soundWave = document.getElementById('sound-wave');
+            if (soundWave) {
+                soundWave.style.animation = 'sound-wave 4s ease-out infinite';
             }
             
             this.currentUser = { pubkey };
@@ -58,9 +103,11 @@ const AuthModule = {
                 playerModule.pubkey = pubkey;
                 
                 // Generate initial position from pubkey hash
-                const hash = CryptoJS.SHA256(pubkey).toString();
-                playerModule.x = parseInt(hash.substr(0,8),16) % 3000;
-                playerModule.y = parseInt(hash.substr(8,8),16) % 3000;
+                if (window.CryptoJS) {
+                    const hash = CryptoJS.SHA256(pubkey).toString();
+                    playerModule.x = parseInt(hash.substr(0,8),16) % 3000;
+                    playerModule.y = parseInt(hash.substr(8,8),16) % 3000;
+                }
             }
             
             // Connect to relays and subscribe to events
@@ -72,13 +119,26 @@ const AuthModule = {
                 await nostrModule.requestAllUsersAndContent();
             }
             
-            // Show game UI
-            const uiModule = RelayWorldCore.getModule('ui');
-            if (uiModule) {
-                uiModule.hideLoginScreen();
-                uiModule.showGameUI();
-                uiModule.updatePlayerProfile();
-            }
+            // Hide login screen after a delay to allow for animations
+            setTimeout(() => {
+                // Show game UI
+                const uiModule = RelayWorldCore.getModule('ui');
+                if (uiModule) {
+                    uiModule.hideLoginScreen();
+                    uiModule.showGameUI();
+                    uiModule.updatePlayerProfile();
+                    uiModule.showToast('Login successful!', 'success');
+                }
+                
+                // Start game if it's not already running
+                const gameModule = RelayWorldCore.getModule('game');
+                if (gameModule && !gameModule.running) {
+                    gameModule.start();
+                }
+                
+                // Re-enable login button
+                if (loginLoader) loginLoader.classList.add('hide');
+            }, 1500);
             
             console.log(`[Auth] Logged in with pubkey: ${pubkey}`);
             RelayWorldCore.eventBus.emit('auth:login', { pubkey });
@@ -86,7 +146,86 @@ const AuthModule = {
             
         } catch (error) {
             console.error("[Auth] Login failed:", error);
-            throw error;
+            
+            // Show error message
+            const loginStatus = document.getElementById('login-status');
+            const loginLoader = document.getElementById('login-loader');
+            
+            if (loginStatus) loginStatus.textContent = 'Login failed: ' + error.message;
+            if (loginLoader) loginLoader.classList.add('hide');
+            
+            // Show toast if UI module is available
+            const uiModule = RelayWorldCore.getModule('ui');
+            if (uiModule && uiModule.showToast) {
+                uiModule.showToast('Login failed: ' + error.message, 'error');
+            }
+            
+            return false;
+        }
+    },
+    
+    // Login as guest
+    loginAsGuest: function() {
+        const uiModule = RelayWorldCore.getModule('ui');
+        if (uiModule && uiModule.showUsernameDialog) {
+            uiModule.showUsernameDialog(username => {
+                if (!username) return; // User canceled
+                
+                const loginLoader = document.getElementById('login-loader');
+                const loginStatus = document.getElementById('login-status');
+                
+                if (loginLoader) loginLoader.classList.remove('hide');
+                if (loginStatus) loginStatus.textContent = 'Setting up guest account...';
+                
+                // Generate a guest ID
+                const guestId = 'guest_' + Math.random().toString(36).substring(2, 10);
+                this.currentUser = { 
+                    pubkey: guestId,
+                    profile: {
+                        name: username,
+                        picture: 'assets/icons/default-avatar.png'
+                    },
+                    isGuest: true
+                };
+                
+                // Create player in the game
+                const playerModule = RelayWorldCore.getModule('player');
+                if (playerModule) {
+                    playerModule.pubkey = guestId;
+                    playerModule.profile = this.currentUser.profile;
+                    
+                    // Random position for guests
+                    playerModule.x = Math.random() * 3000;
+                    playerModule.y = Math.random() * 3000;
+                }
+                
+                // Animate sound wave
+                const soundWave = document.getElementById('sound-wave');
+                if (soundWave) {
+                    soundWave.style.animation = 'sound-wave 4s ease-out infinite';
+                }
+                
+                // Hide login screen after delay
+                setTimeout(() => {
+                    if (uiModule) {
+                        uiModule.hideLoginScreen();
+                        uiModule.showGameUI();
+                        uiModule.updatePlayerProfile();
+                        uiModule.showToast(`Welcome, ${username}!`, 'success');
+                    }
+                    
+                    // Start game
+                    const gameModule = RelayWorldCore.getModule('game');
+                    if (gameModule && !gameModule.running) {
+                        gameModule.start();
+                    }
+                    
+                    if (loginLoader) loginLoader.classList.add('hide');
+                }, 1500);
+                
+                console.log(`[Auth] Logged in as guest: ${username}`);
+                RelayWorldCore.eventBus.emit('auth:login', { pubkey: guestId, isGuest: true });
+            });
         }
     },
     
@@ -105,6 +244,12 @@ const AuthModule = {
         if (uiModule) {
             uiModule.showLoginScreen();
             uiModule.hideGameUI();
+        }
+        
+        // Stop game
+        const gameModule = RelayWorldCore.getModule('game');
+        if (gameModule && gameModule.running) {
+            gameModule.stop();
         }
         
         RelayWorldCore.eventBus.emit('auth:logout', null);
@@ -134,6 +279,21 @@ const NostrModule = {
     activeExplorerRelay: null,
     users: new Map(),
     subscriptions: new Map(),
+    
+    // Event kinds
+    EVENT_KINDS: {
+        METADATA: 0,
+        TEXT_NOTE: 1,
+        CONTACTS: 3,
+        DM: 4,
+        REACTION: 7,
+        CHANNEL_CREATE: 40,
+        CHANNEL_METADATA: 41,
+        CHANNEL_MESSAGE: 42,
+        CHAT: 69000,
+        GAME_STATE: 69001,
+        SCORE: 69420
+    },
     
     // Initialize module
     init: function() {
@@ -308,6 +468,52 @@ const NostrModule = {
         }
     },
     
+    // Connect to DM inbox relay
+    connectToDMInboxRelay: async function(url) {
+        if (this.relayConnections.dmInbox.has(url)) {
+            const existing = this.relayConnections.dmInbox.get(url);
+            if (existing.socket && existing.socket.readyState === WebSocket.OPEN) {
+                return true;
+            }
+        }
+        
+        try {
+            const ws = new WebSocket(url);
+            
+            ws.onopen = () => {
+                console.log(`[Nostr] Connected to DM inbox relay: ${url}`);
+                this.relayConnections.dmInbox.set(url, { url, socket: ws });
+            };
+            
+            ws.onerror = (error) => {
+                console.error(`[Nostr] DM inbox relay error: ${url}`, error);
+            };
+            
+            ws.onclose = () => {
+                console.log(`[Nostr] DM inbox relay connection closed: ${url}`);
+                this.relayConnections.dmInbox.delete(url);
+            };
+            
+            ws.onmessage = (event) => {
+                this.handleRelayMessage(event.data, url);
+            };
+            
+            // Wait for connection to open
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error(`Connection to ${url} timed out`)), 5000);
+                ws.addEventListener('open', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                }, { once: true });
+            });
+            
+            return true;
+        } catch (error) {
+            console.error(`[Nostr] Failed to connect to DM inbox relay ${url}:`, error);
+            throw error;
+        }
+    },
+    
     // Handle relay messages
     handleRelayMessage: function(data, url) {
         let message;
@@ -358,29 +564,38 @@ const NostrModule = {
         
         // Process event based on kind
         switch (event.kind) {
-            case 0: // Profile metadata
+            case this.EVENT_KINDS.METADATA: // Profile metadata
                 this.handleProfileEvent(event);
                 break;
-            case 1: // Text note
+            case this.EVENT_KINDS.TEXT_NOTE: // Text note
                 this.handleTextNoteEvent(event);
                 break;
-            case 3: // Contact list
+            case this.EVENT_KINDS.CONTACTS: // Contact list
                 this.handleContactsEvent(event);
                 break;
-            case 7: // Reaction
+            case this.EVENT_KINDS.REACTION: // Reaction
                 this.handleReactionEvent(event);
                 break;
-            case 4: // Direct message
+            case this.EVENT_KINDS.DM: // Direct message
                 this.handleDirectMessageEvent(event);
                 break;
-            case 40: // Channel creation
+            case this.EVENT_KINDS.CHANNEL_CREATE: // Channel creation
                 this.handleChannelEvent(event);
                 break;
-            case 41: // Channel metadata
+            case this.EVENT_KINDS.CHANNEL_METADATA: // Channel metadata
                 this.handleChannelMetadataEvent(event);
                 break;
-            case 42: // Channel message
+            case this.EVENT_KINDS.CHANNEL_MESSAGE: // Channel message
                 this.handleChannelMessageEvent(event);
+                break;
+            case this.EVENT_KINDS.CHAT: // Game chat
+                this.handleGameChatEvent(event);
+                break;
+            case this.EVENT_KINDS.GAME_STATE: // Game state
+                this.handleGameStateEvent(event);
+                break;
+            case this.EVENT_KINDS.SCORE: // Score update
+                this.handleScoreEvent(event);
                 break;
             default:
                 if (event.kind >= 10000 && event.kind < 20000) {
@@ -393,6 +608,9 @@ const NostrModule = {
                     console.log(`[Nostr] Unhandled event kind: ${event.kind}`);
                 }
         }
+        
+        // Emit event for other modules to handle
+        RelayWorldCore.eventBus.emit(`nostr:event:${subscriptionId}`, event);
     },
     
     // Handle profile metadata event
@@ -563,6 +781,88 @@ const NostrModule = {
         const uiModule = RelayWorldCore.getModule('ui');
         if (uiModule && uiModule.addChannelMessage) {
             uiModule.addChannelMessage(channelId, event);
+        }
+    },
+    
+    // Handle game chat event
+    handleGameChatEvent: function(event) {
+        const content = event.content;
+        const pubkey = event.pubkey;
+        
+        // Ignore our own messages that were already displayed
+        if (pubkey === this.currentUser?.pubkey) return;
+        
+        // Add to chat UI
+        const uiModule = RelayWorldCore.getModule('ui');
+        if (uiModule && uiModule.addChatMessage) {
+            // Get user's profile name
+            const user = this.users.get(pubkey);
+            const username = user?.profile?.name || pubkey.substring(0, 8);
+            
+            uiModule.addChatMessage(username, content);
+        }
+    },
+    
+    // Handle game state event
+    handleGameStateEvent: function(event) {
+        try {
+            const gameState = JSON.parse(event.content);
+            const pubkey = event.pubkey;
+            
+            // Ignore our own state updates
+            if (pubkey === this.currentUser?.pubkey) return;
+            
+            // Create or update user entry
+            if (!this.users.has(pubkey)) {
+                // Calculate initial position
+                let x = 1500, y = 1500;
+                
+                this.users.set(pubkey, {
+                    pubkey,
+                    x, y,
+                    ...gameState
+                });
+            } else {
+                const user = this.users.get(pubkey);
+                
+                // Update position
+                if (gameState.x !== undefined) user.x = gameState.x;
+                if (gameState.y !== undefined) user.y = gameState.y;
+                
+                // Update other state properties
+                Object.assign(user, gameState);
+            }
+        } catch (error) {
+            console.error("[Nostr] Failed to parse game state:", error);
+        }
+    },
+    
+    // Handle score event
+    handleScoreEvent: function(event) {
+        try {
+            const scoreData = JSON.parse(event.content);
+            const pubkey = event.pubkey;
+            
+            // Create or update user entry
+            if (!this.users.has(pubkey)) {
+                this.users.set(pubkey, {
+                    pubkey,
+                    score: scoreData.score,
+                    level: scoreData.level
+                });
+            } else {
+                const user = this.users.get(pubkey);
+                user.score = scoreData.score;
+                if (scoreData.level) user.level = scoreData.level;
+            }
+            
+            // Update leaderboard
+            const uiModule = RelayWorldCore.getModule('ui');
+            if (uiModule && uiModule.updateLeaderboard) {
+                uiModule.updateLeaderboard();
+            }
+        } catch (error) {
+            console.error("[Nostr] Failed to parse score data:", error);
         }
     },
     
@@ -783,7 +1083,7 @@ const NostrModule = {
     },
     
     // Publish an event
-    publishEvent: async function(event, relays = []) {
+    publishEvent: async function(kind, content, tags = []) {
         if (!this.currentUser || !this.currentUser.pubkey) {
             throw new Error("Not logged in");
         }
@@ -878,6 +1178,7 @@ const PlayerModule = {
         distanceTraveled: 0,
         interactions: 0
     },
+    profile: null,
     input: {
         up: false,
         down: false,
@@ -932,6 +1233,28 @@ const PlayerModule = {
             
             // Update stats
             this.stats.distanceTraveled += distance;
+            
+            // Publish position update
+            const nostrModule = RelayWorldCore.getModule('nostr');
+            if (nostrModule) {
+                const gameStateEvent = {
+                    kind: nostrModule.EVENT_KINDS.GAME_STATE,
+                    content: JSON.stringify({
+                        x: this.x,
+                        y: this.y
+                    }),
+                    pubkey: this.pubkey,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: []
+                };
+                
+                // Don't flood the network with updates, send at most 5 per second
+                if (!this._lastUpdateSent || Date.now() - this._lastUpdateSent > 200) {
+                    nostrModule.publishEvent(gameStateEvent.kind, gameStateEvent.content)
+                        .catch(err => console.error("[Player] Failed to publish position update:", err));
+                    this._lastUpdateSent = Date.now();
+                }
+            }
         }
     },
     
@@ -950,7 +1273,9 @@ const PlayerModule = {
         const nostrModule = RelayWorldCore.getModule('nostr');
         
         let playerName = "You";
-        if (nostrModule && nostrModule.currentUser && nostrModule.currentUser.profile) {
+        if (this.profile && this.profile.name) {
+            playerName = this.profile.name;
+        } else if (nostrModule && nostrModule.currentUser && nostrModule.currentUser.profile) {
             playerName = nostrModule.currentUser.profile.name || playerName;
         }
         
@@ -1084,6 +1409,9 @@ const GameModule = {
         // Draw collectibles
         this.drawCollectibles();
         
+        // Draw other players
+        this.drawOtherPlayers();
+        
         // Draw player
         const playerModule = RelayWorldCore.getModule('player');
         if (playerModule) {
@@ -1150,6 +1478,56 @@ const GameModule = {
         }
     },
     
+    // Draw other players
+    drawOtherPlayers: function() {
+        const playerModule = RelayWorldCore.getModule('player');
+        const nostrModule = RelayWorldCore.getModule('nostr');
+        
+        if (!playerModule || !nostrModule) return;
+        
+        const currentPlayerPubkey = playerModule.pubkey;
+        
+        // Draw other players
+        nostrModule.users.forEach((user, pubkey) => {
+            // Skip current player
+            if (pubkey === currentPlayerPubkey) return;
+            
+            // Skip users without position data
+            if (user.x === undefined || user.y === undefined) return;
+            
+            // Calculate screen position relative to player
+            const screenX = this.canvas.width / 2 + (user.x - playerModule.x);
+            const screenY = this.canvas.height / 2 + (user.y - playerModule.y);
+            
+            // Check if user is on screen
+            if (screenX < -50 || screenX > this.canvas.width + 50 || 
+                screenY < -50 || screenY > this.canvas.height + 50) {
+                return;
+            }
+            
+            // Draw player
+            this.ctx.fillStyle = "#0000FF";
+            this.ctx.beginPath();
+            this.ctx.arc(screenX, screenY, 20, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Draw player name
+            const playerName = user.profile?.name || pubkey.substring(0, 8);
+            
+            this.ctx.fillStyle = "#FFFFFF";
+            this.ctx.font = "14px 'Press Start 2P', sans-serif";
+            this.ctx.textAlign = "center";
+            this.ctx.fillText(playerName, screenX, screenY - 30);
+            
+            // Draw score if available
+            if (user.score) {
+                this.ctx.fillStyle = "#FFFF00";
+                this.ctx.font = "12px 'Press Start 2P', sans-serif";
+                this.ctx.fillText(`Score: ${user.score}`, screenX, screenY + 40);
+            }
+        });
+    },
+    
     // Draw UI elements
     drawUI: function() {
         const playerModule = RelayWorldCore.getModule('player');
@@ -1204,11 +1582,25 @@ const GameModule = {
                 const uiModule = RelayWorldCore.getModule('ui');
                 if (uiModule && uiModule.showToast) {
                     uiModule.showToast(`Collected ${item.emoji} +${item.value} points!`);
+                    
+                    // Play sound
+                    if (uiModule.playSound) {
+                        uiModule.playSound('item');
+                    }
                 }
                 
                 // Update player profile
                 if (uiModule && uiModule.updatePlayerProfile) {
                     uiModule.updatePlayerProfile();
+                }
+                
+                // Publish score update
+                const nostrModule = RelayWorldCore.getModule('nostr');
+                if (nostrModule) {
+                    nostrModule.publishEvent(nostrModule.EVENT_KINDS.SCORE, {
+                        score: player.score,
+                        level: player.level
+                    }).catch(err => console.error("[Game] Failed to publish score update:", err));
                 }
             }
         }
@@ -1253,6 +1645,50 @@ const UIModule = {
         if (userPopupClose) {
             userPopupClose.addEventListener('click', () => this.closeUserPopup());
         }
+        
+        // Relay control
+        const relaySelector = document.getElementById('relay-selector');
+        const addRelayButton = document.getElementById('add-relay-button');
+        
+        if (relaySelector) {
+            relaySelector.addEventListener('change', (e) => {
+                const nostrModule = RelayWorldCore.getModule('nostr');
+                if (nostrModule) {
+                    nostrModule.activeExplorerRelay = e.target.value;
+                    nostrModule.requestAllUsersAndContent();
+                }
+            });
+        }
+        
+        if (addRelayButton) {
+            addRelayButton.addEventListener('click', () => {
+                const customRelayInput = document.getElementById('custom-relay-input');
+                if (!customRelayInput) return;
+                
+                const relayUrl = customRelayInput.value.trim();
+                if (!relayUrl) return;
+                
+                // Validate URL
+                if (!relayUrl.startsWith('wss://')) {
+                    this.showToast('Invalid relay URL (must start with wss://)', 'error');
+                    return;
+                }
+                
+                // Add relay
+                const nostrModule = RelayWorldCore.getModule('nostr');
+                if (nostrModule) {
+                    nostrModule.connectToExplorerRelay(relayUrl)
+                        .then(() => {
+                            this.showToast(`Connected to ${relayUrl}`, 'success');
+                            this.updateRelaySelector();
+                            customRelayInput.value = '';
+                        })
+                        .catch(err => {
+                            this.showToast(`Failed to connect to ${relayUrl}: ${err.message}`, 'error');
+                        });
+                }
+            });
+        }
     },
     
     // Show login screen
@@ -1285,6 +1721,14 @@ const UIModule = {
             if (el) el.classList.remove('hide');
         });
         
+        // Show mobile controls on mobile devices
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            const mobileControls = document.getElementById('mobile-controls');
+            if (mobileControls) {
+                mobileControls.classList.remove('hide');
+            }
+        }
+        
         // Start game
         const gameModule = RelayWorldCore.getModule('game');
         if (gameModule && !gameModule.running) {
@@ -1298,7 +1742,8 @@ const UIModule = {
             'top-bar',
             'player-profile',
             'leaderboard-container',
-            'chat-container'
+            'chat-container',
+            'mobile-controls'
         ];
         
         elements.forEach(id => {
@@ -1327,20 +1772,28 @@ const UIModule = {
         const itemsEl = document.getElementById('profile-items');
         const interactionsEl = document.getElementById('profile-interactions');
         
-        if (profileImg && nostrModule.currentUser.profile && nostrModule.currentUser.profile.picture) {
-            profileImg.src = nostrModule.currentUser.profile.picture;
-        } else if (profileImg) {
-            profileImg.src = '/api/placeholder/48/48';
+        if (profileImg) {
+            if (playerModule.profile && playerModule.profile.picture) {
+                profileImg.src = playerModule.profile.picture;
+            } else if (nostrModule.currentUser.profile && nostrModule.currentUser.profile.picture) {
+                profileImg.src = nostrModule.currentUser.profile.picture;
+            } else {
+                profileImg.src = 'assets/icons/default-avatar.png';
+            }
         }
         
-        if (nameEl && nostrModule.currentUser.profile && nostrModule.currentUser.profile.name) {
-            nameEl.textContent = nostrModule.currentUser.profile.name;
-        } else if (nameEl) {
-            nameEl.textContent = nostrModule.currentUser.pubkey.substring(0, 8);
+        if (nameEl) {
+            if (playerModule.profile && playerModule.profile.name) {
+                nameEl.textContent = playerModule.profile.name;
+            } else if (nostrModule.currentUser.profile && nostrModule.currentUser.profile.name) {
+                nameEl.textContent = nostrModule.currentUser.profile.name;
+            } else {
+                nameEl.textContent = `User ${playerModule.pubkey.substring(0, 8)}`;
+            }
         }
         
         if (npubEl) {
-            npubEl.textContent = nostrModule.currentUser.pubkey.substring(0, 8);
+            npubEl.textContent = playerModule.pubkey.substring(0, 8);
         }
         
         if (scoreEl) {
@@ -1359,6 +1812,46 @@ const UIModule = {
         const scoreDisplay = document.getElementById('score-display');
         if (scoreDisplay) {
             scoreDisplay.textContent = `Score: ${playerModule.score}`;
+        }
+    },
+    
+    // Update relay selector dropdown
+    updateRelaySelector: function() {
+        const relaySelector = document.getElementById('relay-selector');
+        if (!relaySelector) return;
+        
+        const nostrModule = RelayWorldCore.getModule('nostr');
+        if (!nostrModule) return;
+        
+        // Clear existing options
+        relaySelector.innerHTML = '';
+        
+        // Add connected relays
+        if (nostrModule.relayConnections.game) {
+            const option = document.createElement('option');
+            option.value = nostrModule.relayConnections.game.url;
+            option.textContent = `Game: ${nostrModule.relayConnections.game.url}`;
+            relaySelector.appendChild(option);
+        }
+        
+        if (nostrModule.relayConnections.login) {
+            const option = document.createElement('option');
+            option.value = nostrModule.relayConnections.login.url;
+            option.textContent = `Login: ${nostrModule.relayConnections.login.url}`;
+            relaySelector.appendChild(option);
+        }
+        
+        // Add explorer relays
+        nostrModule.relayConnections.explorers.forEach((relay, url) => {
+            const option = document.createElement('option');
+            option.value = url;
+            option.textContent = `Explorer: ${url}`;
+            relaySelector.appendChild(option);
+        });
+        
+        // Set active relay
+        if (nostrModule.activeExplorerRelay) {
+            relaySelector.value = nostrModule.activeExplorerRelay;
         }
     },
     
@@ -1402,11 +1895,8 @@ const UIModule = {
         // Publish message
         const nostrModule = RelayWorldCore.getModule('nostr');
         if (nostrModule) {
-            nostrModule.publishEvent({
-                kind: 1,
-                content: message,
-                tags: [['t', 'relayworld']]
-            });
+            nostrModule.publishEvent(nostrModule.EVENT_KINDS.CHAT, message)
+                .catch(err => console.error("[UI] Failed to publish chat message:", err));
         }
     },
     
@@ -1431,12 +1921,18 @@ const UIModule = {
     },
     
     // Show toast notification
-    showToast: function(message) {
+    showToast: function(message, type = '') {
         const toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) return;
+        if (!toastContainer) {
+            // Create container if it doesn't exist
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
         
         const toast = document.createElement('div');
         toast.className = 'toast';
+        if (type) toast.className += ` ${type}`;
         toast.textContent = message;
         
         toastContainer.appendChild(toast);
@@ -1468,7 +1964,7 @@ const UIModule = {
         popup.dataset.pubkey = pubkey;
         popup.classList.remove('hide');
         
-        img.src = user.profile?.picture || '/api/placeholder/50/50';
+        img.src = user.profile?.picture || 'assets/icons/default-avatar.png';
         nameEl.textContent = user.profile?.name || pubkey.substring(0, 8);
         npubEl.textContent = pubkey.substring(0, 8);
         
@@ -1508,6 +2004,164 @@ const UIModule = {
             popup.classList.add('hide');
             popup.dataset.pubkey = '';
         }
+    },
+    
+    // Show username dialog for guest login
+    showUsernameDialog: function(callback) {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+        overlay.style.display = 'flex';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.zIndex = '10000';
+        
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.style.backgroundColor = 'var(--color-light, #8bac0f)';
+        dialog.style.border = '8px solid var(--color-medium, #306230)';
+        dialog.style.padding = '24px';
+        dialog.style.maxWidth = '90%';
+        dialog.style.width = '400px';
+        dialog.style.boxShadow = '0 0 0 4px var(--color-dark, #0f380f), 8px 8px 0 rgba(0,0,0,0.5)';
+        
+        // Create dialog content
+        dialog.innerHTML = `
+            <h2 style="color: var(--color-dark, #0f380f); margin-bottom: 20px; text-align: center;">Enter Your Guest Username</h2>
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="guest-username-input" placeholder="Username (3-20 characters)" value="Guest${Math.floor(Math.random() * 1000)}" 
+                       style="width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid var(--color-dark, #0f380f); font-size: 16px;">
+                <div id="username-error" style="color: var(--color-danger, #cf6679); font-size: 14px; margin-top: 5px; visibility: hidden;">
+                    Username must be 3-20 characters
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="username-submit" style="flex: 1; padding: 10px; background-color: var(--color-primary, #8bac0f); 
+                        color: var(--color-dark, #0f380f); border: 3px solid var(--color-dark, #0f380f); 
+                        cursor: pointer; font-family: 'Press Start 2P', system-ui, sans-serif;">Continue</button>
+                
+                <button id="username-cancel" style="flex: 1; padding: 10px; background-color: var(--color-medium, #306230);
+                        color: white; border: 3px solid var(--color-dark, #0f380f); 
+                        cursor: pointer; font-family: 'Press Start 2P', system-ui, sans-serif;">Cancel</button>
+            </div>
+        `;
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        // Focus the input
+        const input = document.getElementById('guest-username-input');
+        setTimeout(() => input?.focus(), 100);
+        
+        // Set up handlers
+        const submitButton = document.getElementById('username-submit');
+        const cancelButton = document.getElementById('username-cancel');
+        const errorMsg = document.getElementById('username-error');
+        
+        const validateInput = () => {
+            if (!input) return false;
+            
+            const value = input.value.trim();
+            const isValid = value.length >= 3 && value.length <= 20;
+            
+            if (errorMsg) {
+                errorMsg.style.visibility = isValid ? 'hidden' : 'visible';
+            }
+            
+            return isValid;
+        };
+        
+        const handleSubmit = () => {
+            if (validateInput()) {
+                const username = input.value.trim();
+                document.body.removeChild(overlay);
+                callback(username);
+            }
+        };
+        
+        if (submitButton) {
+            submitButton.addEventListener('click', handleSubmit);
+        }
+        
+        if (cancelButton) {
+            cancelButton.addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                callback(null);
+            });
+        }
+        
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleSubmit();
+                }
+            });
+            
+            input.addEventListener('input', validateInput);
+        }
+        
+        // Close when clicking outside
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+                callback(null);
+            }
+        });
+    },
+    
+    // Update leaderboard
+    updateLeaderboard: function() {
+        const leaderboardEntries = document.getElementById('leaderboard-entries');
+        if (!leaderboardEntries) return;
+        
+        const nostrModule = RelayWorldCore.getModule('nostr');
+        if (!nostrModule) return;
+        
+        // Get users with scores
+        const usersWithScores = Array.from(nostrModule.users.entries())
+            .filter(([_, user]) => user.score !== undefined)
+            .map(([pubkey, user]) => ({
+                pubkey,
+                name: user.profile?.name || pubkey.substring(0, 8),
+                score: user.score || 0
+            }))
+            .sort((a, b) => b.score - a.score);
+        
+        // Generate leaderboard HTML
+        const html = usersWithScores.slice(0, 10).map((user, index) => `
+            <div class="leaderboard-entry">
+                <span class="rank">${index + 1}</span>
+                <span class="name">${this._escapeHTML(user.name)}</span>
+                <span class="score">${user.score}</span>
+            </div>
+        `).join('');
+        
+        leaderboardEntries.innerHTML = html || '<div class="leaderboard-entry">No scores yet</div>';
+    },
+    
+    // Play sound effect
+    playSound: function(soundName) {
+        // Sound effect mapping
+        const sounds = {
+            item: "item.mp3",
+            success: "success.mp3",
+            error: "error.mp3"
+        };
+        
+        // Get sound file
+        const soundFile = sounds[soundName];
+        if (!soundFile) return;
+        
+        // Create audio element
+        const audio = new Audio(`assets/sounds/${soundFile}`);
+        
+        // Play sound (catch errors silently)
+        audio.play().catch(() => {});
     },
     
     // Helper method to escape HTML
