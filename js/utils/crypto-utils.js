@@ -312,11 +312,5 @@ var CryptoUtils = {
     }
 };
 
-// Export for compatibility with both ES modules and direct script inclusion
-try {
-    // ES Module export
-    export { CryptoUtils };
-} catch (e) {
-    // In case of direct script inclusion, make globally available
-    window.CryptoUtils = CryptoUtils;
-}
+// Make CryptoUtils available globally
+window.CryptoUtils = CryptoUtils;
