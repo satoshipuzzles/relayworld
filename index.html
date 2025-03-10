@@ -61,129 +61,7 @@
     <link rel="stylesheet" href="css/animations.css">
     <link rel="stylesheet" href="css/fix.css">
     <link rel="stylesheet" href="css/wallet-toast.css">
-    
-    <!-- Critical login fix styles -->
-    <style>
-        /* Login specific styling fixes */
-        #login-screen {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            align-items: center !important;
-            z-index: 9999 !important;
-            background-color: var(--color-dark) !important;
-        }
-        
-        #login-panel {
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            background-color: var(--color-light) !important; 
-            border: 8px solid var(--color-medium) !important;
-            padding: 24px !important;
-            max-width: 90% !important;
-            width: 500px !important;
-            box-shadow: 0 0 0 4px var(--color-dark), 8px 8px 0 rgba(0,0,0,0.5) !important;
-            position: relative !important;
-        }
-        
-        #login-options {
-            width: 100% !important;
-            margin: 20px 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 15px !important;
-        }
-        
-        #login-button, #guest-login-button {
-            cursor: pointer !important;
-            width: 100% !important;
-            font-family: 'Press Start 2P', system-ui, sans-serif !important;
-        }
-        
-        /* Animation definitions */
-        @keyframes float {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0); }
-        }
-        
-        @keyframes triforce-spin {
-            0% { transform: rotateY(0deg); }
-            100% { transform: rotateY(360deg); }
-        }
-        
-        @keyframes triforce-pulse {
-            0% { opacity: 0.8; }
-            100% { opacity: 1; filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.9)); }
-        }
-        
-        @keyframes sound-wave {
-            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
-        }
-        
-        /* Apply animations */
-        #login-panel {
-            animation: float 3s ease-in-out infinite !important;
-        }
-        
-        .triforce-container {
-            animation: triforce-spin 10s linear infinite !important;
-        }
-        
-        .triforce {
-            animation: triforce-pulse 2s ease-in-out infinite alternate !important;
-        }
-        
-        /* Toast styles */
-        #toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 10px;
-            pointer-events: none;
-        }
-        
-        .toast {
-            background-color: var(--color-light);
-            color: var(--color-dark);
-            padding: 12px 16px;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            max-width: 300px;
-            animation: toast-in 0.3s, toast-out 0.5s 2.5s forwards;
-        }
-        
-        .toast.success {
-            background-color: var(--color-very-light);
-            border-left: 4px solid var(--color-success);
-        }
-        
-        .toast.error {
-            background-color: #fdd;
-            border-left: 4px solid var(--color-danger);
-        }
-        
-        @keyframes toast-in {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        
-        @keyframes toast-out {
-            from { opacity: 1; }
-            to { opacity: 0; transform: translateY(-20px); }
-        }
-    </style>
+    <link rel="stylesheet" href="css/login-fix.css">
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/icons/favicon.png">
@@ -217,10 +95,6 @@
                 <div id="login-options">
                     <button id="login-button" class="primary-button">CONNECT WITH NOSTR</button>
                     <button id="guest-login-button" class="secondary-button">PLAY AS GUEST</button>
-                    <div class="login-extras hide">
-                        <div class="separator">AFTER LOGGING IN</div>
-                        <button id="login-nwc" class="secondary-button">CONNECT LIGHTNING WALLET</button>
-                    </div>
                 </div>
                 
                 <div class="loader hide" id="login-loader"></div>
@@ -253,6 +127,8 @@
                         <label for="relay-selector">Explorer Relay:</label>
                         <select id="relay-selector">
                             <option value="wss://relay.damus.io">relay.damus.io</option>
+                            <option value="wss://relay.nostr.band">relay.nostr.band</option>
+                            <option value="wss://nos.lol">nos.lol</option>
                         </select>
                     </div>
                     <div class="custom-relay">
@@ -312,6 +188,34 @@
         <div id="toast-container"></div>
     </div>
 
+    <!-- Toast notification system -->
+    <script>
+    // Simple toast notification system
+    function showToast(message, type = '') {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            // Create container if it doesn't exist
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+            return showToast(message, type); // Try again
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = 'toast ' + (type || '');
+        toast.textContent = message;
+        
+        toastContainer.appendChild(toast);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 3000);
+    }
+    </script>
+
     <!-- ModuleSystem script - core functionality -->
     <script>
     // Simple Module System to handle import/export statements
@@ -329,6 +233,10 @@
     // Global objects needed by core system
     window.EventBus = {
       listeners: new Map(),
+      init: function() {
+        console.log("EventBus initialized");
+        return this;
+      },
       on: function(event, callback) {
         if (!this.listeners.has(event)) this.listeners.set(event, []);
         this.listeners.get(event).push(callback);
@@ -362,6 +270,10 @@
     // Config manager
     window.ConfigManager = {
       configs: new Map(),
+      init: function() {
+        console.log("ConfigManager initialized");
+        return this;
+      },
       setConfig: function(key, value) {
         this.configs.set(key, value);
         window.EventBus.emit('config:change', { key, value });
@@ -377,8 +289,31 @@
       modules: new Map(),
       eventBus: window.EventBus,
       config: window.ConfigManager,
+      init: async function() {
+        console.log("RelayWorldCore initializing...");
+        await this.eventBus.init();
+        await this.config.init();
+        
+        // Initialize all modules in order
+        for (const [name, module] of this.modules.entries()) {
+          if (typeof module.init === 'function') {
+            try {
+              console.log(`Initializing module: ${name}`);
+              await module.init();
+              console.log(`Module ${name} initialized`);
+            } catch (err) {
+              console.error(`Failed to initialize module ${name}:`, err);
+            }
+          }
+        }
+        
+        console.log("RelayWorldCore initialized");
+        this.eventBus.emit('core:ready', null);
+        return this;
+      },
       registerModule: function(name, module) {
         this.modules.set(name, module);
+        console.log(`Module registered: ${name}`);
         return this;
       },
       getModule: function(name) {
@@ -404,303 +339,124 @@
         return result;
       }
     };
-    </script>
-
-    <!-- Direct login handler -->
-    <script>
-    // Bare minimum login functionality - completely standalone
-    (function() {
-      console.log("Setting up login handlers");
-      
-      // Create toast container if needed
-      function ensureToastContainer() {
-        if (!document.getElementById('toast-container')) {
-          const container = document.createElement('div');
-          container.id = 'toast-container';
-          document.body.appendChild(container);
-        }
+    
+    // Simple player module
+    window.RelayWorldCore.registerModule('player', {
+      name: "player",
+      description: "Player state and actions",
+      pubkey: null,
+      x: 1500,
+      y: 1500,
+      speed: 200,
+      score: 0,
+      input: { up: false, down: false, left: false, right: false },
+      init: function() {
+        console.log("Player module initialized");
+        return true;
       }
-      
-      // Show toast notification
-      function showToast(message, type) {
-        ensureToastContainer();
-        const container = document.getElementById('toast-container');
-        
-        const toast = document.createElement('div');
-        toast.className = 'toast ' + (type || '');
-        toast.textContent = message;
-        
-        container.appendChild(toast);
-        
-        // Remove after animation
-        setTimeout(() => {
-          if (toast.parentNode) toast.parentNode.removeChild(toast);
-        }, 3000);
-      }
-      
-      // Show username dialog
-      function showUsernameDialog(callback) {
-        // Create overlay
-        const overlay = document.createElement('div');
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100vw';
-        overlay.style.height = '100vh';
-        overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-        overlay.style.display = 'flex';
-        overlay.style.justifyContent = 'center';
-        overlay.style.alignItems = 'center';
-        overlay.style.zIndex = '10000';
-        
-        // Create dialog
-        const dialog = document.createElement('div');
-        dialog.style.backgroundColor = 'var(--color-light, #8bac0f)';
-        dialog.style.border = '8px solid var(--color-medium, #306230)';
-        dialog.style.padding = '24px';
-        dialog.style.maxWidth = '90%';
-        dialog.style.width = '400px';
-        dialog.style.boxShadow = '0 0 0 4px var(--color-dark, #0f380f), 8px 8px 0 rgba(0,0,0,0.5)';
-        
-        // Create dialog content
-        dialog.innerHTML = `
-          <h2 style="color: var(--color-dark, #0f380f); margin-bottom: 20px; text-align: center;">Enter Your Guest Username</h2>
-          <div style="margin-bottom: 20px;">
-            <input type="text" id="guest-username-input" placeholder="Username (3-20 characters)" value="Guest${Math.floor(Math.random() * 1000)}" 
-                   style="width: 100%; padding: 12px; box-sizing: border-box; border: 2px solid var(--color-dark, #0f380f); font-size: 16px;">
-            <div id="username-error" style="color: var(--color-danger, #cf6679); font-size: 14px; margin-top: 5px; visibility: hidden;">
-              Username must be 3-20 characters
-            </div>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button id="username-submit" style="flex: 1; padding: 10px; background-color: var(--color-primary, #8bac0f); 
-                    color: var(--color-dark, #0f380f); border: 3px solid var(--color-dark, #0f380f); 
-                    cursor: pointer; font-family: 'Press Start 2P', system-ui, sans-serif;">Continue</button>
-            
-            <button id="username-cancel" style="flex: 1; padding: 10px; background-color: var(--color-medium, #306230);
-                    color: white; border: 3px solid var(--color-dark, #0f380f); 
-                    cursor: pointer; font-family: 'Press Start 2P', system-ui, sans-serif;">Cancel</button>
-          </div>
-        `;
-        
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-        
-        // Focus the input
-        const input = document.getElementById('guest-username-input');
-        setTimeout(() => input?.focus(), 100);
-        
-        // Set up handlers
-        const submitButton = document.getElementById('username-submit');
-        const cancelButton = document.getElementById('username-cancel');
-        const errorMsg = document.getElementById('username-error');
-        
-        const validateInput = () => {
-          if (!input) return false;
-          
-          const value = input.value.trim();
-          const isValid = value.length >= 3 && value.length <= 20;
-          
-          if (errorMsg) {
-            errorMsg.style.visibility = isValid ? 'hidden' : 'visible';
-          }
-          
-          return isValid;
-        };
-        
-        const handleSubmit = () => {
-          if (validateInput()) {
-            const username = input.value.trim();
-            document.body.removeChild(overlay);
-            callback(username);
-          }
-        };
-        
-        if (submitButton) {
-          submitButton.addEventListener('click', handleSubmit);
-        }
-        
-        if (cancelButton) {
-          cancelButton.addEventListener('click', () => {
-            document.body.removeChild(overlay);
-            callback(null);
-          });
-        }
-        
-        if (input) {
-          input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-              handleSubmit();
-            }
-          });
-          
-          input.addEventListener('input', validateInput);
-        }
-        
-        // Close when clicking outside
-        overlay.addEventListener('click', (e) => {
-          if (e.target === overlay) {
-            document.body.removeChild(overlay);
-            callback(null);
-          }
-        });
-      }
-      
-      // Utility to hide login screen
-      function hideLoginScreen() {
+    });
+    
+    // Register a simple UI module
+    window.RelayWorldCore.registerModule('ui', {
+      name: "ui",
+      description: "User interface",
+      init: function() {
+        console.log("UI module initialized");
+        return true;
+      },
+      showToast: showToast,
+      hideLoginScreen: function() {
         const loginScreen = document.getElementById('login-screen');
         if (loginScreen) {
-          // Fade out
           loginScreen.style.opacity = '0';
           loginScreen.style.transition = 'opacity 0.5s ease';
-          
-          // Actually hide after animation
           setTimeout(() => {
             loginScreen.classList.add('hide');
-            // Reset opacity for next time
             loginScreen.style.opacity = '1';
           }, 500);
         }
-      }
-      
-      // Show game UI
-      function showGameUI() {
-        // Show main UI elements
-        document.getElementById('top-bar')?.classList.remove('hide');
-        document.getElementById('chat-container')?.classList.remove('hide');
-        document.getElementById('player-profile')?.classList.remove('hide');
-        document.getElementById('leaderboard-container')?.classList.remove('hide');
+      },
+      showGameUI: function() {
+        ['top-bar', 'player-profile', 'leaderboard-container', 'chat-container'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove('hide');
+        });
         
-        // Show mobile controls if on mobile
+        // Show mobile controls on mobile devices
         if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
           const mobileControls = document.getElementById('mobile-controls');
-          if (mobileControls) {
-            mobileControls.classList.remove('hide');
-          }
+          if (mobileControls) mobileControls.classList.remove('hide');
         }
+      },
+      updatePlayerProfile: function() {
+        const playerModule = window.RelayWorldCore.getModule('player');
+        if (!playerModule) return;
+        
+        const nameEl = document.getElementById('player-profile-name');
+        const npubEl = document.getElementById('player-profile-npub');
+        const scoreEl = document.getElementById('profile-score');
+        
+        if (nameEl && playerModule.name) nameEl.textContent = playerModule.name;
+        if (npubEl && playerModule.pubkey) npubEl.textContent = playerModule.pubkey.substring(0, 8);
+        if (scoreEl) scoreEl.textContent = playerModule.score || 0;
       }
-      
-      // Animate login effects
-      function playLoginAnimation() {
-        // Animate sound wave
-        const soundWave = document.getElementById('sound-wave');
-        if (soundWave) {
-          soundWave.style.animation = 'sound-wave 4s ease-out infinite';
-        }
-      }
-      
-      // Set up Nostr login button
-      const loginButton = document.getElementById('login-button');
-      if (loginButton) {
-        loginButton.addEventListener('click', async function() {
-          console.log("Nostr login button clicked");
-          const loginLoader = document.getElementById('login-loader');
-          const loginStatus = document.getElementById('login-status');
-          
-          if (loginLoader) loginLoader.classList.remove('hide');
-          if (loginStatus) loginStatus.textContent = 'Looking for Nostr extension...';
-          
-          try {
-            // Check for nostr extension
-            if (!window.nostr) {
-              showToast('Nostr extension not found. Please install a NIP-07 extension like Alby or nos2x.', 'error');
-              if (loginStatus) loginStatus.textContent = 'Nostr extension not found';
-              if (loginLoader) loginLoader.classList.add('hide');
-              return;
-            }
-            
-            if (loginStatus) loginStatus.textContent = 'Requesting pubkey...';
-            
-            // Get public key
-            const pubkey = await window.nostr.getPublicKey();
-            
-            if (!pubkey) {
-              showToast('No pubkey returned from extension', 'error');
-              if (loginStatus) loginStatus.textContent = 'No pubkey returned';
-              if (loginLoader) loginLoader.classList.add('hide');
-              return;
-            }
-            
-            if (loginStatus) loginStatus.textContent = 'Got pubkey, logging in...';
-            
-            // Play animation
-            playLoginAnimation();
-            
-            // Process after a delay
-            setTimeout(() => {
-              // Hide login screen
-              hideLoginScreen();
-              
-              // Show game UI
-              showGameUI();
-              
-              // Update profile
-              const nameEl = document.getElementById('player-profile-name');
-              const npubEl = document.getElementById('player-profile-npub');
-              
-              if (nameEl) nameEl.textContent = `User ${pubkey.substring(0, 8)}`;
-              if (npubEl) npubEl.textContent = pubkey.substring(0, 8);
-              
-              showToast('Login successful!', 'success');
-              
-              if (loginLoader) loginLoader.classList.add('hide');
-            }, 1500);
-            
-          } catch (error) {
-            console.error("Nostr login error:", error);
-            showToast(`Login error: ${error.message}`, 'error');
-            if (loginStatus) loginStatus.textContent = 'Login error';
-            if (loginLoader) loginLoader.classList.add('hide');
-          }
-        });
-      }
-      
-      // Set up Guest login button
-      const guestLoginButton = document.getElementById('guest-login-button');
-      if (guestLoginButton) {
-        guestLoginButton.addEventListener('click', function() {
-          console.log("Guest login button clicked");
-          
-          showUsernameDialog(username => {
-            if (!username) return; // User canceled
-            
-            const loginLoader = document.getElementById('login-loader');
-            const loginStatus = document.getElementById('login-status');
-            
-            if (loginLoader) loginLoader.classList.remove('hide');
-            if (loginStatus) loginStatus.textContent = 'Setting up guest account...';
-            
-            // Play animation
-            playLoginAnimation();
-            
-            // Process after a delay
-            setTimeout(() => {
-              // Hide login screen
-              hideLoginScreen();
-              
-              // Show game UI
-              showGameUI();
-              
-              // Update profile
-              const nameEl = document.getElementById('player-profile-name');
-              const npubEl = document.getElementById('player-profile-npub');
-              const profileImg = document.getElementById('player-profile-image');
-              
-              if (nameEl) nameEl.textContent = username;
-              if (npubEl) npubEl.textContent = 'Guest';
-              if (profileImg) profileImg.src = 'assets/icons/default-avatar.png';
-              
-              showToast(`Welcome, ${username}!`, 'success');
-              
-              if (loginLoader) loginLoader.classList.add('hide');
-            }, 1500);
+    });
+    
+    // Simple game module that immediately initializes a relay world instance
+    window.RelayWorldCore.registerModule('game', {
+      name: "game",
+      description: "Game loop and mechanics",
+      canvas: null,
+      ctx: null,
+      running: false,
+      initialized: false,
+      init: function() {
+        console.log("Game module initialized");
+        this.initialized = true;
+        // Initialize canvas
+        this.canvas = document.getElementById('game-canvas');
+        if (this.canvas) {
+          this.ctx = this.canvas.getContext('2d');
+          this.canvas.width = window.innerWidth;
+          this.canvas.height = window.innerHeight;
+          window.addEventListener('resize', () => {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
           });
-        });
+        }
+        
+        // Signal that we're ready for the 3D engine
+        window.RelayWorld = { 
+          initialized: true,
+          version: '1.0.0'
+        };
+        
+        return true;
+      },
+      start: function() {
+        if (this.running) return;
+        this.running = true;
+        console.log("Game started");
+        return true;
       }
-    })();
+    });
     </script>
+
+    <!-- Login script (with improvements) -->
+    <script src="js/login.js"></script>
     
     <!-- 3D Engine Script (load last) -->
     <script src="js/relay-world-3d.js"></script>
+    
+    <!-- Initialize core system after all modules are registered -->
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log("DOM loaded, initializing RelayWorldCore");
+      window.RelayWorldCore.init().catch(err => {
+        console.error("Failed to initialize RelayWorldCore:", err);
+        showToast("Failed to initialize game. Please reload the page.", "error");
+      });
+    });
+    </script>
 </body>
 </html>
