@@ -3,7 +3,8 @@
  * Nostr-specific utilities for Relay World
  */
 
-import { CryptoUtils } from './crypto-utils.js';
+// Use global CryptoUtils instead of import
+// Remove: import { CryptoUtils } from './crypto-utils.js';
 
 export const NostrUtils = {
     // Sign an event using Nostr extension
@@ -305,3 +306,6 @@ export const NostrUtils = {
         return event;
     }
 };
+
+// Make NostrUtils available globally
+window.NostrUtils = NostrUtils;
