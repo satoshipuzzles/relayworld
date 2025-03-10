@@ -1,9 +1,8 @@
 /**
  * relay-world-3d.js
- * Enhanced 3D rendering engine for Relay World with improved ostrich models
+ * Enhanced 3D rendering engine for Relay World with improved initialization
  */
-// Ensure compatibility with older THREE.js versions
-document.write('<script src="js/three-compatibility.js"></script>');
+
 // Create the 3D game engine namespace
 const RelayWorld3D = {
     // Core properties
@@ -27,7 +26,8 @@ const RelayWorld3D = {
         
         // Make sure THREE.js is available
         if (typeof THREE === 'undefined') {
-            await this.loadThreeJS();
+            console.error("[RelayWorld3D] THREE.js not available!");
+            return false;
         }
         
         // Get the canvas
@@ -79,18 +79,75 @@ const RelayWorld3D = {
         
         this.initialized = true;
         console.log("[RelayWorld3D] 3D engine initialized");
+        
+        // Add demo player if in standalone mode
+        if (!window.RelayWorld || !window.RelayWorld.initialized) {
+            console.log("[RelayWorld3D] Running in standalone mode");
+            this.createDemoMode();
+        }
+        
         return true;
     },
     
-    // Load Three.js from CDN if not available
-    loadThreeJS: function() {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
+    // Create demo mode for testing without the full game
+    createDemoMode: function() {
+        console.log("[RelayWorld3D] Creating demo mode");
+        
+        // Create a demo player
+        this.createOstrich("demo", { name: "Player Demo" });
+        
+        // Spawn collectibles
+        this.spawnRandomCollectibles(30);
+        
+        // Setup basic keyboard controls for demo
+        const input = { up: false, down: false, left: false, right: false };
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') input.up = true;
+            if (e.key === 'ArrowDown' || e.key === 's') input.down = true;
+            if (e.key === 'ArrowLeft' || e.key === 'a') input.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') input.right = true;
         });
+        
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w') input.up = false;
+            if (e.key === 'ArrowDown' || e.key === 's') input.down = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a') input.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') input.right = false;
+        });
+        
+        // Update loop for demo mode
+        const demoPlayer = this.players.get("demo");
+        
+        if (demoPlayer) {
+            const updateDemo = () => {
+                const speed = 0.5;
+                
+                if (input.up) demoPlayer.model.position.z -= speed;
+                if (input.down) demoPlayer.model.position.z += speed;
+                if (input.left) demoPlayer.model.position.x -= speed;
+                if (input.right) demoPlayer.model.position.x += speed;
+                
+                // Update camera to follow player
+                this.camera.position.x = demoPlayer.model.position.x;
+                this.camera.position.z = demoPlayer.model.position.z + 20;
+                this.camera.lookAt(demoPlayer.model.position);
+                
+                // Update player rotation based on movement
+                if (input.up && input.right) demoPlayer.model.rotation.y = Math.PI * 0.25;
+                else if (input.up && input.left) demoPlayer.model.rotation.y = Math.PI * 1.75;
+                else if (input.down && input.right) demoPlayer.model.rotation.y = Math.PI * 0.75;
+                else if (input.down && input.left) demoPlayer.model.rotation.y = Math.PI * 1.25;
+                else if (input.right) demoPlayer.model.rotation.y = Math.PI * 0.5;
+                else if (input.left) demoPlayer.model.rotation.y = Math.PI * 1.5;
+                else if (input.down) demoPlayer.model.rotation.y = Math.PI;
+                else if (input.up) demoPlayer.model.rotation.y = 0;
+                
+                requestAnimationFrame(updateDemo);
+            };
+            
+            requestAnimationFrame(updateDemo);
+        }
     },
     
     // Setup lighting for the scene
@@ -150,7 +207,7 @@ const RelayWorld3D = {
         const groundGeometry = new THREE.CircleGeometry(200, 64);
         const groundMaterial = new THREE.MeshLambertMaterial({ 
             color: 0x8bac0f, 
-            side: THREE.DoubleSide,
+            side: THREE.DoubleSide
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
@@ -164,7 +221,7 @@ const RelayWorld3D = {
         const skyboxGeometry = new THREE.SphereGeometry(400, 32, 32);
         const skyboxMaterial = new THREE.MeshBasicMaterial({
             color: 0x0a2f0a,
-            side: THREE.BackSide,
+            side: THREE.BackSide
         });
         const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
         this.scene.add(skybox);
@@ -180,8 +237,7 @@ const RelayWorld3D = {
             const size = 1 + Math.random() * 3;
             const rockGeometry = new THREE.DodecahedronGeometry(size, 0);
             const rockMaterial = new THREE.MeshLambertMaterial({
-                color: 0x555555,
-                flatShading: true
+                color: 0x555555
             });
             
             const rock = new THREE.Mesh(rockGeometry, rockMaterial);
@@ -230,8 +286,7 @@ const RelayWorld3D = {
             const segments = 6;
             const foliageGeometry = new THREE.ConeGeometry(size, height, segments);
             const foliageMaterial = new THREE.MeshLambertMaterial({ 
-                color: foliageColors[i % foliageColors.length],
-                flatShading: true
+                color: foliageColors[i % foliageColors.length]
             });
             
             const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
@@ -296,6 +351,7 @@ const RelayWorld3D = {
                         e.preventDefault();
                         const playerModule = window.RelayWorldCore?.getModule('player');
                         if (playerModule) {
+                            playerModule.input = playerModule.input || {};
                             playerModule.input[direction] = isDown;
                         }
                     });
@@ -311,9 +367,29 @@ const RelayWorld3D = {
                 handleTouch(rightButton, 'right', false);
             }
         }
+        
+        // Listen for player login events
+        if (window.EventBus && typeof window.EventBus.on === 'function') {
+            window.EventBus.on('auth:login', (data) => {
+                console.log("[RelayWorld3D] Player logged in:", data.pubkey.substring(0, 8));
+                
+                // Get player data from module
+                const playerModule = window.RelayWorldCore?.getModule('player');
+                if (playerModule) {
+                    const playerData = {
+                        name: playerModule.name || `User ${data.pubkey.substring(0, 8)}`,
+                        picture: playerModule.picture || this.defaultProfileImage,
+                        isCurrentPlayer: true
+                    };
+                    
+                    // Create player model
+                    this.createOstrich(data.pubkey, playerData);
+                }
+            });
+        }
     },
     
-    // Create a high-quality 3D ostrich player model
+    // Create a player model (simplified version)
     createOstrich: function(pubkey, playerData = {}) {
         // Create a group for the ostrich model
         const ostrich = new THREE.Group();
@@ -321,21 +397,14 @@ const RelayWorld3D = {
         // Set up colors
         const colors = {
             body: 0x8B5CF6, // Rich purple for body
-            neck: 0x9F7AEA, // Lighter purple for neck
-            head: 0xA78BFA, // Even lighter purple for head
-            darkFeathers: 0x7C3AED, // Dark purple for feet and details
-            beak: 0xFFD700, // Gold for beak
-            eye: 0xFFFFFF, // White for eyes
-            pupil: 0x000000, // Black for pupils
-            legs: 0x6D28D9 // Deep purple for legs
+            legs: 0x6D28D9  // Deep purple for legs
         };
         
-        // 1. BODY - More sophisticated body shape
+        // Body - simplified
         const bodyGeometry = new THREE.CapsuleGeometry(1.5, 2, 8, 16);
         const bodyMaterial = new THREE.MeshPhongMaterial({ 
             color: colors.body,
-            shininess: 30,
-            flatShading: false
+            shininess: 30
         });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.position.y = 2.5;
@@ -343,215 +412,25 @@ const RelayWorld3D = {
         body.receiveShadow = true;
         ostrich.add(body);
         
-        // Add some feather details to the body
-        const addFeathers = (parent, count, baseY, scale, color) => {
-            for (let i = 0; i < count; i++) {
-                const featherGeometry = new THREE.ConeGeometry(0.2 * scale, 0.6 * scale, 4);
-                const featherMaterial = new THREE.MeshPhongMaterial({
-                    color: color,
-                    flatShading: true,
-                    shininess: 10
-                });
-                
-                const feather = new THREE.Mesh(featherGeometry, featherMaterial);
-                const angle = (i / count) * Math.PI * 2;
-                const radius = 1.4 * scale;
-                
-                feather.position.x = Math.cos(angle) * radius;
-                feather.position.z = Math.sin(angle) * radius;
-                feather.position.y = baseY + Math.random() * 0.3;
-                
-                // Rotate to point outward
-                feather.rotation.x = Math.PI / 2;
-                feather.rotation.z = angle + Math.PI;
-                
-                feather.castShadow = true;
-                parent.add(feather);
-            }
-        };
-        
-        // Add body feathers
-        addFeathers(body, 12, 0, 1, colors.darkFeathers);
-        
-        // 2. NECK - Curved neck with multiple segments
-        const createNeckSegment = (y, scale, bend) => {
-            const segGeometry = new THREE.CylinderGeometry(
-                0.3 * scale, 
-                0.4 * scale, 
-                0.5, 
-                8
-            );
-            const segMaterial = new THREE.MeshPhongMaterial({ 
-                color: colors.neck,
-                shininess: 20
-            });
-            
-            const segment = new THREE.Mesh(segGeometry, segMaterial);
-            segment.position.y = y;
-            segment.position.z = bend;
-            segment.castShadow = true;
-            segment.receiveShadow = true;
-            
-            return segment;
-        };
-        
-        // Create neck with 5 segments for a natural curve
-        const neck = new THREE.Group();
-        
-        for (let i = 0; i < 5; i++) {
-            const y = 4 + i * 0.5;
-            // Increase bend as we go up
-            const bend = -0.1 - (i * 0.15);
-            const segment = createNeckSegment(y, 1 - (i * 0.1), bend);
-            // Add progressively more rotation as we go up
-            segment.rotation.x = Math.PI / 10 + (i * Math.PI / 30);
-            neck.add(segment);
-        }
-        
-        ostrich.add(neck);
-        
-        // 3. HEAD - More detailed head
-        const headGroup = new THREE.Group();
-        
-        // Main head shape
-        const headGeometry = new THREE.SphereGeometry(0.6, 12, 12);
-        const headMaterial = new THREE.MeshPhongMaterial({ 
-            color: colors.head,
-            shininess: 30
-        });
-        const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.castShadow = true;
-        headGroup.add(head);
-        
-        // Beak - more detailed shape
-        const beakGroup = new THREE.Group();
-        
-        // Upper beak
-        const upperBeakGeometry = new THREE.ConeGeometry(0.25, 0.8, 8);
-        const beakMaterial = new THREE.MeshPhongMaterial({ 
-            color: colors.beak,
-            shininess: 60
-        });
-        const upperBeak = new THREE.Mesh(upperBeakGeometry, beakMaterial);
-        upperBeak.rotation.x = Math.PI / 2;
-        upperBeak.position.z = -0.6;
-        upperBeak.castShadow = true;
-        beakGroup.add(upperBeak);
-        
-        // Lower beak
-        const lowerBeakGeometry = new THREE.ConeGeometry(0.2, 0.5, 8);
-        const lowerBeak = new THREE.Mesh(lowerBeakGeometry, beakMaterial);
-        lowerBeak.rotation.x = Math.PI / 2;
-        lowerBeak.position.z = -0.6;
-        lowerBeak.position.y = -0.1;
-        lowerBeak.castShadow = true;
-        beakGroup.add(lowerBeak);
-        
-        headGroup.add(beakGroup);
-        
-        // Eyes - more detailed with proper placement
-        for (let i = -1; i <= 1; i += 2) {
-            // White of eye
-            const eyeGeometry = new THREE.SphereGeometry(0.15, 12, 12);
-            const eyeMaterial = new THREE.MeshBasicMaterial({ color: colors.eye });
-            const eye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            eye.position.x = i * 0.3;
-            eye.position.z = -0.35;
-            eye.position.y = 0.1;
-            headGroup.add(eye);
-            
-            // Pupil
-            const pupilGeometry = new THREE.SphereGeometry(0.07, 8, 8);
-            const pupilMaterial = new THREE.MeshBasicMaterial({ color: colors.pupil });
-            const pupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-            pupil.position.x = i * 0.3;
-            pupil.position.z = -0.48;
-            pupil.position.y = 0.1;
-            headGroup.add(pupil);
-            
-            // Eyelid
-            const lidGeometry = new THREE.RingGeometry(0.1, 0.18, 16, 2, 0, Math.PI);
-            const lidMaterial = new THREE.MeshBasicMaterial({ 
-                color: colors.head,
-                side: THREE.DoubleSide
-            });
-            const lid = new THREE.Mesh(lidGeometry, lidMaterial);
-            lid.position.x = i * 0.3;
-            lid.position.z = -0.35;
-            lid.position.y = 0.18;
-            lid.rotation.x = Math.PI / 2;
-            headGroup.add(lid);
-        }
-        
-        // Add small feathers on top of head
-        const headFeathersGroup = new THREE.Group();
-        for (let i = 0; i < 7; i++) {
-            const featherGeometry = new THREE.ConeGeometry(0.07, 0.3, 4);
-            const featherMaterial = new THREE.MeshPhongMaterial({
-                color: colors.darkFeathers,
-                flatShading: true
-            });
-            
-            const feather = new THREE.Mesh(featherGeometry, featherMaterial);
-            feather.position.y = 0.3 + (i % 3) * 0.1;
-            feather.position.x = ((i - 3) * 0.1);
-            feather.rotation.x = -Math.PI / 6;
-            feather.castShadow = true;
-            
-            headFeathersGroup.add(feather);
-        }
-        
-        headGroup.add(headFeathersGroup);
-        headGroup.position.y = 6.5;
-        headGroup.position.z = -1.3;
-        headGroup.rotation.x = Math.PI / 8;
-        ostrich.add(headGroup);
-        
-        // 4. LEGS - Better shaped legs with joints
+        // Legs - simplified
         for (let i = -1; i <= 1; i += 2) {
             const legGroup = new THREE.Group();
             
-            // Upper leg - thigh
-            const thighGeometry = new THREE.CylinderGeometry(0.25, 0.3, 1.8, 8);
+            const shinGeometry = new THREE.CylinderGeometry(0.2, 0.18, 2, 8);
             const legMaterial = new THREE.MeshPhongMaterial({ 
                 color: colors.legs,
                 shininess: 20
             });
             
-            const thigh = new THREE.Mesh(thighGeometry, legMaterial);
-            thigh.position.y = -0.9;
-            thigh.castShadow = true;
-            thigh.receiveShadow = true;
-            legGroup.add(thigh);
-            
-            // Lower leg - shin
-            const shinGeometry = new THREE.CylinderGeometry(0.2, 0.18, 2, 8);
             const shin = new THREE.Mesh(shinGeometry, legMaterial);
             shin.position.y = -2.8;
             shin.castShadow = true;
             shin.receiveShadow = true;
             legGroup.add(shin);
             
-            // Foot
-            const footGeometry = new THREE.CylinderGeometry(0.1, 0.05, 1, 3);
-            const footMaterial = new THREE.MeshPhongMaterial({ 
-                color: colors.darkFeathers,
-                shininess: 10
-            });
-            
-            const foot = new THREE.Mesh(footGeometry, footMaterial);
-            foot.position.y = -3.8;
-            foot.position.z = 0.3;
-            foot.rotation.x = Math.PI / 3;
-            foot.castShadow = true;
-            foot.receiveShadow = true;
-            legGroup.add(foot);
-            
-            // Position leg group
             legGroup.position.x = i * 0.7;
             legGroup.position.y = 2.5;
             
-            // Store leg for animations
             if (i < 0) {
                 ostrich.userData.leftLeg = legGroup;
             } else {
@@ -561,100 +440,17 @@ const RelayWorld3D = {
             ostrich.add(legGroup);
         }
         
-        // 5. TAIL FEATHERS - Fan of tail feathers
-        const tailGroup = new THREE.Group();
-        
-        for (let i = 0; i < 7; i++) {
-            const featherGeometry = new THREE.PlaneGeometry(0.7, 1.5);
-            const featherMaterial = new THREE.MeshPhongMaterial({
-                color: colors.darkFeathers,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.9
-            });
-            
-            const feather = new THREE.Mesh(featherGeometry, featherMaterial);
-            const angle = ((i - 3) / 7) * Math.PI / 3;
-            
-            feather.position.z = 1.3;
-            feather.position.y = 3;
-            feather.rotation.x = Math.PI / 2.5;
-            feather.rotation.z = angle;
-            
-            tailGroup.add(feather);
-        }
-        
-        ostrich.add(tailGroup);
-        
-        // 6. PLAYER LABEL - Name and profile pic above head
+        // PLAYER LABEL - Name and profile pic above head
         // Get player name and image
         const name = playerData.name || pubkey.substring(0, 8);
         const profileImage = playerData.picture || this.defaultProfileImage;
         
-        // Create a nicer-looking name tag
-        const nameTagGroup = new THREE.Group();
-        
-        // Background panel with rounded corners
-        const panelWidth = Math.min(8, Math.max(4, name.length * 0.6));
-        const panelGeometry = new THREE.PlaneGeometry(panelWidth, 1.2);
-        const panelMaterial = new THREE.MeshBasicMaterial({
-            color: 0x000000,
-            transparent: true,
-            opacity: 0.6,
-            side: THREE.DoubleSide
-        });
-        
-        const panel = new THREE.Mesh(panelGeometry, panelMaterial);
-        nameTagGroup.add(panel);
-        
         // Create text sprite for the name
         const textSprite = this.createTextSprite(name);
-        textSprite.position.z = 0.01; // Slightly in front of the panel
-        nameTagGroup.add(textSprite);
+        textSprite.position.y = 6;
+        ostrich.add(textSprite);
         
-        // Create profile image sprite if available
-        if (profileImage) {
-            // Load texture for profile image
-            const loader = new THREE.TextureLoader();
-            
-            // Try to load the profile image
-            try {
-                loader.load(
-                    profileImage,
-                    (texture) => {
-                        const avatarSize = 1.5;
-                        const avatarGeometry = new THREE.CircleGeometry(avatarSize/2, 32);
-                        const avatarMaterial = new THREE.MeshBasicMaterial({
-                            map: texture,
-                            side: THREE.DoubleSide
-                        });
-                        
-                        const avatar = new THREE.Mesh(avatarGeometry, avatarMaterial);
-                        avatar.position.y = 2.5;
-                        avatar.position.z = 0.01;
-                        
-                        nameTagGroup.add(avatar);
-                    },
-                    undefined,
-                    (error) => {
-                        console.error("Failed to load profile image:", error);
-                    }
-                );
-            } catch (e) {
-                console.error("Error loading profile image:", e);
-            }
-        }
-        
-        // Position the name tag group above the ostrich
-        nameTagGroup.position.y = 9;
-        nameTagGroup.rotation.x = -Math.PI / 6; // Tilt for better visibility
-        
-        // Ensure name tag always faces camera
-        nameTagGroup.userData.billboard = true;
-        
-        ostrich.add(nameTagGroup);
-        
-        // 7. SCALE AND FINISH - Apply final scaling
+        // Scale model
         ostrich.scale.set(this.scaleFactor, this.scaleFactor, this.scaleFactor);
         
         // Store animation properties
@@ -663,13 +459,8 @@ const RelayWorld3D = {
             walkSpeed: 0,
             walkCycle: 0,
             isWalking: false,
-            leftLegPos: 0,
-            rightLegPos: Math.PI,
             startY: 0,
-            jumpHeight: 0,
-            isJumping: false,
-            blinkTime: 0,
-            nextBlinkTime: Math.random() * 5000
+            isJumping: false
         };
         
         // Add to scene
@@ -724,165 +515,15 @@ const RelayWorld3D = {
     
     // Create a collectible item
     createCollectible: function(x, y, z, value, type = 'gem') {
-        // Define collectible types and their properties
-        const collectibleTypes = {
-            gem: { color: 0x3B82F6, emoji: '💎' }, // Blue
-            mushroom: { color: 0xEF4444, emoji: '🍄' }, // Red
-            orb: { color: 0x8B5CF6, emoji: '🔮' }, // Purple
-            lightning: { color: 0xF59E0B, emoji: '⚡' }, // Yellow
-            key: { color: 0xF59E0B, emoji: '🔑' } // Gold
-        };
-        
         const collectible = new THREE.Group();
         collectible.position.set(x, y, z);
         
-        // Get collectible properties
-        const props = collectibleTypes[type] || collectibleTypes.gem;
-        
-        // Create the base geometry based on type
-        let geometry;
-        if (type === 'gem') {
-            // Create a diamond gem shape
-            geometry = new THREE.OctahedronGeometry(1, 1);
-        } else if (type === 'mushroom') {
-            // Create a mushroom shape (cylinder with sphere cap)
-            const mushroomGroup = new THREE.Group();
-            
-            // Stem
-            const stemGeometry = new THREE.CylinderGeometry(0.3, 0.4, 1, 8);
-            const stemMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0xFFFFFF,
-                shininess: 30
-            });
-            const stem = new THREE.Mesh(stemGeometry, stemMaterial);
-            stem.position.y = -0.5;
-            stem.castShadow = true;
-            mushroomGroup.add(stem);
-            
-            // Cap
-            const capGeometry = new THREE.SphereGeometry(0.8, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-            const capMaterial = new THREE.MeshPhongMaterial({
-                color: props.color,
-                shininess: 50
-            });
-            const cap = new THREE.Mesh(capGeometry, capMaterial);
-            cap.position.y = 0.1;
-            cap.castShadow = true;
-            mushroomGroup.add(cap);
-            
-            // Add spots
-            for (let i = 0; i < 6; i++) {
-                const spotGeometry = new THREE.CircleGeometry(0.1, 8);
-                const spotMaterial = new THREE.MeshBasicMaterial({ 
-                    color: 0xFFFFFF,
-                    side: THREE.DoubleSide
-                });
-                const spot = new THREE.Mesh(spotGeometry, spotMaterial);
-                
-                // Position spots randomly on cap
-                const angle = Math.random() * Math.PI * 2;
-                const radius = 0.2 + Math.random() * 0.4;
-                
-                spot.position.x = Math.cos(angle) * radius;
-                spot.position.z = Math.sin(angle) * radius;
-                spot.position.y = 0.11; // Just above cap
-                spot.rotation.x = -Math.PI / 2; // Face upward
-                
-                mushroomGroup.add(spot);
-            }
-            
-            collectible.add(mushroomGroup);
-            return collectible;
-        } else if (type === 'orb') {
-            geometry = new THREE.SphereGeometry(1, 24, 24);
-        } else if (type === 'lightning') {
-            // Create a more interesting lightning bolt shape
-            const lightningGroup = new THREE.Group();
-            
-            // Base bolt
-            const boltGeometry = new THREE.CylinderGeometry(0.2, 0.2, 2, 6, 1, false);
-            const boltMaterial = new THREE.MeshPhongMaterial({
-                color: props.color,
-                shininess: 80,
-                emissive: props.color,
-                emissiveIntensity: 0.5
-            });
-            
-            // Deform vertices for zigzag effect
-            const positions = boltGeometry.attributes.position;
-            
-            for (let i = 0; i < positions.count; i++) {
-                const y = positions.getY(i);
-                
-                // Only affect middle sections
-                if (y > -0.8 && y < 0.8) {
-                    const zigzagFactor = Math.sin(y * 10) * 0.2;
-                    positions.setX(i, positions.getX(i) + zigzagFactor);
-                }
-            }
-            
-            const bolt = new THREE.Mesh(boltGeometry, boltMaterial);
-            bolt.castShadow = true;
-            lightningGroup.add(bolt);
-            
-            // Glow effect
-            const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
-            const glowMaterial = new THREE.MeshBasicMaterial({
-                color: props.color,
-                transparent: true,
-                opacity: 0.3
-            });
-            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-            glow.scale.y = 1.5;
-            lightningGroup.add(glow);
-            
-            collectible.add(lightningGroup);
-            return collectible;
-        } else if (type === 'key') {
-            // Create a key shape
-            const keyGroup = new THREE.Group();
-            
-            // Key head (circle)
-            const headGeometry = new THREE.TorusGeometry(0.5, 0.2, 16, 32);
-            const keyMaterial = new THREE.MeshPhongMaterial({
-                color: props.color,
-                shininess: 70
-            });
-            
-            const head = new THREE.Mesh(headGeometry, keyMaterial);
-            head.position.y = 0.5;
-            head.castShadow = true;
-            keyGroup.add(head);
-            
-            // Key shaft
-            const shaftGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1.5, 8);
-            const shaft = new THREE.Mesh(shaftGeometry, keyMaterial);
-            shaft.position.y = -0.5;
-            shaft.castShadow = true;
-            keyGroup.add(shaft);
-            
-            // Key teeth
-            for (let i = 0; i < 3; i++) {
-                const toothGeometry = new THREE.BoxGeometry(0.4, 0.25, 0.25);
-                const tooth = new THREE.Mesh(toothGeometry, keyMaterial);
-                tooth.position.y = -0.9 - (i * 0.3);
-                tooth.position.x = 0.25;
-                tooth.castShadow = true;
-                keyGroup.add(tooth);
-            }
-            
-            collectible.add(keyGroup);
-            return collectible;
-        } else {
-            // Default is a simple box
-            geometry = new THREE.BoxGeometry(1, 1, 1);
-        }
-        
-        // Create material with glow effect
+        // Create a simple geometry for the collectible
+        const geometry = new THREE.OctahedronGeometry(1, 1);
         const material = new THREE.MeshPhongMaterial({
-            color: props.color,
+            color: 0x3B82F6,
             shininess: 100,
-            emissive: props.color,
+            emissive: 0x3B82F6,
             emissiveIntensity: 0.2
         });
         
@@ -893,7 +534,7 @@ const RelayWorld3D = {
         // Add glow effect
         const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
         const glowMaterial = new THREE.MeshBasicMaterial({
-            color: props.color,
+            color: 0x3B82F6,
             transparent: true,
             opacity: 0.2
         });
@@ -964,19 +605,18 @@ const RelayWorld3D = {
             }
         });
         
-        // Update player models (if there's a game module)
-        if (window.RelayWorld && window.RelayWorldCore) {
-            const playerModule = window.RelayWorldCore.getModule('player');
+        // Update player models
+        if (window.RelayWorld) {
+            const playerModule = window.RelayWorldCore?.getModule('player');
             if (playerModule && playerModule.pubkey) {
                 // Get current player
                 let player = this.players.get(playerModule.pubkey);
                 
                 if (!player) {
                     // Create player model if it doesn't exist
-                    const nostrModule = window.RelayWorldCore.getModule('nostr');
                     const playerData = {
-                        name: nostrModule?.currentUser?.profile?.name || playerModule.pubkey.substring(0, 8),
-                        picture: nostrModule?.currentUser?.profile?.picture || this.defaultProfileImage,
+                        name: playerModule.name || playerModule.pubkey.substring(0, 8),
+                        picture: playerModule.picture || this.defaultProfileImage,
                         isCurrentPlayer: true
                     };
                     
@@ -985,12 +625,12 @@ const RelayWorld3D = {
                 }
                 
                 if (player && player.model) {
-                    const isMoving = playerModule.input.up || playerModule.input.down || 
-                                  playerModule.input.left || playerModule.input.right;
+                    const isMoving = playerModule.input?.up || playerModule.input?.down || 
+                                  playerModule.input?.left || playerModule.input?.right;
                     
-                    // Update player position based on 2D coordinates
-                    player.model.position.x = playerModule.x - 1500; // Center around 0
-                    player.model.position.z = playerModule.y - 1500; // Convert y to z
+                    // Update player position based on game state
+                    player.model.position.x = (playerModule.x || 1500) - 1500;
+                    player.model.position.z = (playerModule.y || 1500) - 1500;
                     
                     // Update walking animation
                     if (isMoving) {
@@ -1029,24 +669,6 @@ const RelayWorld3D = {
                         }
                     }
                     
-                    // Check for blinking
-                    player.model.userData.blinkTime += delta * 1000;
-                    if (player.model.userData.blinkTime > player.model.userData.nextBlinkTime) {
-                        // Find eye meshes and make them blink
-                        player.model.traverse((child) => {
-                            if (child.name === 'eyelid') {
-                                child.visible = true;
-                                setTimeout(() => {
-                                    child.visible = false;
-                                }, 150);
-                            }
-                        });
-                        
-                        // Reset blink timer
-                        player.model.userData.blinkTime = 0;
-                        player.model.userData.nextBlinkTime = 2000 + Math.random() * 4000;
-                    }
-                    
                     // Position camera to follow player
                     this.camera.position.x = player.model.position.x - Math.sin(player.model.rotation.y) * 30;
                     this.camera.position.z = player.model.position.z - Math.cos(player.model.rotation.y) * 30;
@@ -1059,15 +681,6 @@ const RelayWorld3D = {
                 }
             }
         }
-        
-        // Make nametags face the camera (billboard effect)
-        this.players.forEach(player => {
-            player.model.traverse((child) => {
-                if (child.userData && child.userData.billboard) {
-                    child.lookAt(this.camera.position);
-                }
-            });
-        });
     },
     
     // Add a new player
@@ -1105,16 +718,13 @@ const RelayWorld3D = {
         });
         this.collectibles = [];
         
-        // Types of collectibles
-        const types = ['gem', 'mushroom', 'orb', 'lightning', 'key'];
-        
         // Spawn new collectibles
         for (let i = 0; i < count; i++) {
             const x = (Math.random() - 0.5) * 150;
             const z = (Math.random() - 0.5) * 150;
             const y = 2 + Math.random() * 2;
             const value = Math.floor(Math.random() * 50) + 10;
-            const type = types[Math.floor(Math.random() * types.length)];
+            const type = 'gem';
             
             this.createCollectible(x, y, z, value, type);
         }
@@ -1123,110 +733,34 @@ const RelayWorld3D = {
     }
 };
 
-// Initialize the 3D engine when the page is loaded
+// Wait for DOM to be ready, then try to initialize the 3D engine
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("[RelayWorld3D] DOM loaded, initializing 3D engine...");
+    
+    // Initialize immediately if RelayWorld exists
+    if (window.RelayWorld && window.RelayWorld.initialized) {
+        await RelayWorld3D.init();
+        return;
+    }
+    
     console.log("[RelayWorld3D] Waiting for game to initialize...");
     
-    // Wait for RelayWorld to initialize
-    const waitForRelayWorld = async () => {
-        for (let i = 0; i < 20; i++) { // Try for 10 seconds (20 * 500ms)
-            if (window.RelayWorld && window.RelayWorld.initialized) {
-                return true;
-            }
-            await new Promise(resolve => setTimeout(resolve, 500));
+    // Otherwise, try to wait for RelayWorld to initialize
+    let attempts = 0;
+    const maxAttempts = 20;
+    const checkInterval = setInterval(async () => {
+        attempts++;
+        
+        if (window.RelayWorld && window.RelayWorld.initialized) {
+            clearInterval(checkInterval);
+            console.log("[RelayWorld3D] RelayWorld initialized, setting up 3D engine...");
+            await RelayWorld3D.init();
+        } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            console.log("[RelayWorld3D] RelayWorld not initialized after " + maxAttempts + " attempts, initializing standalone mode...");
+            await RelayWorld3D.init();
         }
-        return false;
-    };
-    
-    const relayWorldReady = await waitForRelayWorld();
-    
-    if (relayWorldReady) {
-        console.log("[RelayWorld3D] RelayWorld initialized, setting up 3D engine...");
-        
-        // Override the game's rendering
-        const gameModule = window.RelayWorldCore.getModule('game');
-        if (gameModule) {
-            // Save original methods
-            const originalDraw = gameModule.draw;
-            
-            // Override draw method to prevent 2D rendering
-            gameModule.draw = function() {
-                // Only update UI elements from original draw
-                this.drawUI();
-            };
-            
-            console.log("[RelayWorld3D] Game rendering overridden");
-        }
-        
-        // Initialize the 3D engine
-        await RelayWorld3D.init();
-        
-        // Spawn initial collectibles
-        RelayWorld3D.spawnRandomCollectibles(30);
-        
-        console.log("[RelayWorld3D] 3D engine integration complete");
-    } else {
-        console.error("[RelayWorld3D] RelayWorld not initialized, initializing standalone 3D engine...");
-        
-        // Initialize 3D engine in standalone mode
-        await RelayWorld3D.init();
-        
-        // Create a demo player
-        RelayWorld3D.createOstrich("demo", { name: "Player" });
-        
-        // Spawn collectibles
-        RelayWorld3D.spawnRandomCollectibles(30);
-        
-        // Setup basic keyboard controls for demo
-        const input = { up: false, down: false, left: false, right: false };
-        
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowUp' || e.key === 'w') input.up = true;
-            if (e.key === 'ArrowDown' || e.key === 's') input.down = true;
-            if (e.key === 'ArrowLeft' || e.key === 'a') input.left = true;
-            if (e.key === 'ArrowRight' || e.key === 'd') input.right = true;
-        });
-        
-        window.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowUp' || e.key === 'w') input.up = false;
-            if (e.key === 'ArrowDown' || e.key === 's') input.down = false;
-            if (e.key === 'ArrowLeft' || e.key === 'a') input.left = false;
-            if (e.key === 'ArrowRight' || e.key === 'd') input.right = false;
-        });
-        
-        // Update loop for demo mode
-        const demoPlayer = RelayWorld3D.players.get("demo");
-        
-        if (demoPlayer) {
-            const updateDemo = () => {
-                const speed = 0.5;
-                
-                if (input.up) demoPlayer.model.position.z -= speed;
-                if (input.down) demoPlayer.model.position.z += speed;
-                if (input.left) demoPlayer.model.position.x -= speed;
-                if (input.right) demoPlayer.model.position.x += speed;
-                
-                // Update camera to follow player
-                RelayWorld3D.camera.position.x = demoPlayer.model.position.x;
-                RelayWorld3D.camera.position.z = demoPlayer.model.position.z + 20;
-                RelayWorld3D.camera.lookAt(demoPlayer.model.position);
-                
-                // Update player rotation based on movement
-                if (input.up && input.right) demoPlayer.model.rotation.y = Math.PI * 0.25;
-                else if (input.up && input.left) demoPlayer.model.rotation.y = Math.PI * 1.75;
-                else if (input.down && input.right) demoPlayer.model.rotation.y = Math.PI * 0.75;
-                else if (input.down && input.left) demoPlayer.model.rotation.y = Math.PI * 1.25;
-                else if (input.right) demoPlayer.model.rotation.y = Math.PI * 0.5;
-                else if (input.left) demoPlayer.model.rotation.y = Math.PI * 1.5;
-                else if (input.down) demoPlayer.model.rotation.y = Math.PI;
-                else if (input.up) demoPlayer.model.rotation.y = 0;
-                
-                requestAnimationFrame(updateDemo);
-            };
-            
-            requestAnimationFrame(updateDemo);
-        }
-    }
+    }, 500);
 });
 
 // Export the 3D engine
