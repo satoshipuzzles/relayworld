@@ -1,6 +1,6 @@
 /**
  * relay-world-3d.js
- * Enhanced 3D rendering engine for Relay World with improved initialization
+ * Enhanced 3D rendering engine for Relay World with WebGL fallback mode
  */
 
 // Create the 3D game engine namespace
@@ -10,25 +10,34 @@ const RelayWorld3D = {
     camera: null,
     renderer: null,
     canvas: null,
-    clock: new THREE.Clock(),
+    clock: null,
     initialized: false,
     scaleFactor: 1.3,
     defaultProfileImage: 'assets/icons/default-avatar.png',
+    
+    // Fallback mode for when WebGL is not available
+    fallbackMode: false,
+    ctx2d: null,
     
     // Game objects
     players: new Map(), // Map<pubkey, {model: THREE.Group, data: Object}>
     collectibles: [],
     lightningBolts: [],
     
-    // Initialize the 3D engine
-    init: async function() {
-        console.log("[RelayWorld3D] Initializing 3D engine...");
-        
-        // Make sure THREE.js is available
-        if (typeof THREE === 'undefined') {
-            console.error("[RelayWorld3D] THREE.js not available!");
+    // Check if WebGL is available
+    isWebGLAvailable: function() {
+        try {
+            const canvas = document.createElement('canvas');
+            return !!(window.WebGLRenderingContext && 
+                (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+        } catch(e) {
             return false;
         }
+    },
+    
+    // Initialize the engine
+    init: async function() {
+        console.log("[RelayWorld3D] Initializing 3D/2D engine...");
         
         // Get the canvas
         this.canvas = document.getElementById('game-canvas');
@@ -37,53 +46,111 @@ const RelayWorld3D = {
             return false;
         }
         
-        // Create the scene
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0f380f); // Match game's dark green background
+        // Check if WebGL is available
+        if (!this.isWebGLAvailable() || typeof THREE === 'undefined') {
+            console.warn("[RelayWorld3D] WebGL not available or THREE.js not loaded, using 2D fallback mode");
+            return this.initFallbackMode();
+        }
         
-        // Add fog for atmosphere
-        this.scene.fog = new THREE.FogExp2(0x0f380f, 0.015);
+        try {
+            // Create a clock for animations
+            this.clock = new THREE.Clock();
+            
+            // Create the scene
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color(0x0f380f); // Match game's dark green background
+            
+            // Add fog for atmosphere
+            this.scene.fog = new THREE.FogExp2(0x0f380f, 0.015);
+            
+            // Create the camera
+            this.camera = new THREE.PerspectiveCamera(
+                70, 
+                window.innerWidth / window.innerHeight, 
+                0.1, 
+                1000 * this.scaleFactor
+            );
+            this.camera.position.set(0, 15 * this.scaleFactor, 30 * this.scaleFactor);
+            this.camera.lookAt(0, 0, 0);
+            
+            // Create the renderer
+            this.renderer = new THREE.WebGLRenderer({ 
+                canvas: this.canvas,
+                antialias: true,
+                alpha: true
+            });
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            // Add lighting
+            this.setupLighting();
+            
+            // Create the ground and environment
+            this.createEnvironment();
+            
+            // Setup event handlers
+            this.setupEventHandlers();
+            
+            // Start animation loop
+            this.animate();
+            
+            this.initialized = true;
+            console.log("[RelayWorld3D] 3D engine initialized");
+            
+            // Add demo player if in standalone mode
+            if (!window.RelayWorld || !window.RelayWorld.initialized) {
+                console.log("[RelayWorld3D] Running in standalone mode");
+                this.createDemoMode();
+            }
+            
+            return true;
+        } catch (error) {
+            console.error("[RelayWorld3D] Failed to initialize 3D engine:", error);
+            // Fall back to 2D mode if 3D initialization fails
+            return this.initFallbackMode();
+        }
+    },
+    
+    // Initialize fallback 2D mode
+    initFallbackMode: function() {
+        console.log("[RelayWorld3D] Initializing 2D fallback mode");
         
-        // Create the camera
-        this.camera = new THREE.PerspectiveCamera(
-            70, 
-            window.innerWidth / window.innerHeight, 
-            0.1, 
-            1000 * this.scaleFactor
-        );
-        this.camera.position.set(0, 15 * this.scaleFactor, 30 * this.scaleFactor);
-        this.camera.lookAt(0, 0, 0);
+        this.fallbackMode = true;
         
-        // Create the renderer
-        this.renderer = new THREE.WebGLRenderer({ 
-            canvas: this.canvas,
-            antialias: true,
-            alpha: true
+        // Get 2D context
+        this.ctx2d = this.canvas.getContext('2d');
+        if (!this.ctx2d) {
+            console.error("[RelayWorld3D] Failed to get 2D context");
+            return false;
+        }
+        
+        // Set canvas dimensions
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
         });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         
-        // Add lighting
-        this.setupLighting();
-        
-        // Create the ground and environment
-        this.createEnvironment();
+        // Start animation loop
+        this.animate2D();
         
         // Setup event handlers
         this.setupEventHandlers();
         
-        // Start animation loop
-        this.animate();
+        // Create some random collectibles for the 2D mode
+        this.spawnRandomCollectibles2D(20);
         
         this.initialized = true;
-        console.log("[RelayWorld3D] 3D engine initialized");
+        console.log("[RelayWorld3D] 2D fallback mode initialized");
         
-        // Add demo player if in standalone mode
-        if (!window.RelayWorld || !window.RelayWorld.initialized) {
-            console.log("[RelayWorld3D] Running in standalone mode");
-            this.createDemoMode();
+        // Show a message to the user about fallback mode
+        if (typeof showToast === 'function') {
+            showToast("3D mode not available, using simplified 2D mode instead", "warning");
         }
         
         return true;
@@ -93,11 +160,26 @@ const RelayWorld3D = {
     createDemoMode: function() {
         console.log("[RelayWorld3D] Creating demo mode");
         
-        // Create a demo player
-        this.createOstrich("demo", { name: "Player Demo" });
+        if (this.fallbackMode) {
+            // 2D demo mode
+            this.player2D = {
+                x: this.canvas.width / 2,
+                y: this.canvas.height / 2,
+                radius: 20,
+                color: "#FF0000",
+                name: "Player Demo"
+            };
+        } else {
+            // 3D demo mode
+            this.createOstrich("demo", { name: "Player Demo" });
+        }
         
         // Spawn collectibles
-        this.spawnRandomCollectibles(30);
+        if (this.fallbackMode) {
+            this.spawnRandomCollectibles2D(30);
+        } else {
+            this.spawnRandomCollectibles(30);
+        }
         
         // Setup basic keyboard controls for demo
         const input = { up: false, down: false, left: false, right: false };
@@ -117,41 +199,49 @@ const RelayWorld3D = {
         });
         
         // Update loop for demo mode
-        const demoPlayer = this.players.get("demo");
-        
-        if (demoPlayer) {
-            const updateDemo = () => {
-                const speed = 0.5;
-                
-                if (input.up) demoPlayer.model.position.z -= speed;
-                if (input.down) demoPlayer.model.position.z += speed;
-                if (input.left) demoPlayer.model.position.x -= speed;
-                if (input.right) demoPlayer.model.position.x += speed;
-                
-                // Update camera to follow player
-                this.camera.position.x = demoPlayer.model.position.x;
-                this.camera.position.z = demoPlayer.model.position.z + 20;
-                this.camera.lookAt(demoPlayer.model.position);
-                
-                // Update player rotation based on movement
-                if (input.up && input.right) demoPlayer.model.rotation.y = Math.PI * 0.25;
-                else if (input.up && input.left) demoPlayer.model.rotation.y = Math.PI * 1.75;
-                else if (input.down && input.right) demoPlayer.model.rotation.y = Math.PI * 0.75;
-                else if (input.down && input.left) demoPlayer.model.rotation.y = Math.PI * 1.25;
-                else if (input.right) demoPlayer.model.rotation.y = Math.PI * 0.5;
-                else if (input.left) demoPlayer.model.rotation.y = Math.PI * 1.5;
-                else if (input.down) demoPlayer.model.rotation.y = Math.PI;
-                else if (input.up) demoPlayer.model.rotation.y = 0;
+        if (this.fallbackMode) {
+            // 2D update loop
+            this.demoInput = input;
+        } else {
+            // 3D update loop
+            const demoPlayer = this.players.get("demo");
+            
+            if (demoPlayer) {
+                const updateDemo = () => {
+                    const speed = 0.5;
+                    
+                    if (input.up) demoPlayer.model.position.z -= speed;
+                    if (input.down) demoPlayer.model.position.z += speed;
+                    if (input.left) demoPlayer.model.position.x -= speed;
+                    if (input.right) demoPlayer.model.position.x += speed;
+                    
+                    // Update camera to follow player
+                    this.camera.position.x = demoPlayer.model.position.x;
+                    this.camera.position.z = demoPlayer.model.position.z + 20;
+                    this.camera.lookAt(demoPlayer.model.position);
+                    
+                    // Update player rotation based on movement
+                    if (input.up && input.right) demoPlayer.model.rotation.y = Math.PI * 0.25;
+                    else if (input.up && input.left) demoPlayer.model.rotation.y = Math.PI * 1.75;
+                    else if (input.down && input.right) demoPlayer.model.rotation.y = Math.PI * 0.75;
+                    else if (input.down && input.left) demoPlayer.model.rotation.y = Math.PI * 1.25;
+                    else if (input.right) demoPlayer.model.rotation.y = Math.PI * 0.5;
+                    else if (input.left) demoPlayer.model.rotation.y = Math.PI * 1.5;
+                    else if (input.down) demoPlayer.model.rotation.y = Math.PI;
+                    else if (input.up) demoPlayer.model.rotation.y = 0;
+                    
+                    requestAnimationFrame(updateDemo);
+                };
                 
                 requestAnimationFrame(updateDemo);
-            };
-            
-            requestAnimationFrame(updateDemo);
+            }
         }
     },
     
-    // Setup lighting for the scene
+    // Setup lighting for the 3D scene
     setupLighting: function() {
+        if (this.fallbackMode) return;
+        
         // Ambient light
         const ambientLight = new THREE.AmbientLight(0xcccccc, 0.4);
         this.scene.add(ambientLight);
@@ -194,8 +284,10 @@ const RelayWorld3D = {
         this.pointLight = pointLight;
     },
     
-    // Create ground and environment
+    // Create ground and environment for 3D mode
     createEnvironment: function() {
+        if (this.fallbackMode) return;
+        
         // Grid helper
         const gridSize = 200;
         const gridDivisions = 40;
@@ -230,8 +322,10 @@ const RelayWorld3D = {
         this.addStars();
     },
     
-    // Add terrain details
+    // Add terrain details for 3D mode
     addTerrainDetails: function() {
+        if (this.fallbackMode) return;
+        
         // Add some rocks
         for (let i = 0; i < 50; i++) {
             const size = 1 + Math.random() * 3;
@@ -264,8 +358,10 @@ const RelayWorld3D = {
         }
     },
     
-    // Create a low-poly tree
+    // Create a low-poly tree for 3D mode
     createTree: function() {
+        if (this.fallbackMode) return null;
+        
         const tree = new THREE.Group();
         
         // Tree trunk
@@ -299,8 +395,10 @@ const RelayWorld3D = {
         return tree;
     },
     
-    // Add stars to the night sky
+    // Add stars to the night sky for 3D mode
     addStars: function() {
+        if (this.fallbackMode) return;
+        
         const starsGeometry = new THREE.BufferGeometry();
         const starsMaterial = new THREE.PointsMaterial({
             color: 0xffffff,
@@ -331,9 +429,14 @@ const RelayWorld3D = {
     setupEventHandlers: function() {
         // Handle window resize
         window.addEventListener('resize', () => {
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            if (this.fallbackMode) {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            } else {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
         });
         
         // For mobile - handle touch events
@@ -376,21 +479,34 @@ const RelayWorld3D = {
                 // Get player data from module
                 const playerModule = window.RelayWorldCore?.getModule('player');
                 if (playerModule) {
-                    const playerData = {
-                        name: playerModule.name || `User ${data.pubkey.substring(0, 8)}`,
-                        picture: playerModule.picture || this.defaultProfileImage,
-                        isCurrentPlayer: true
-                    };
-                    
-                    // Create player model
-                    this.createOstrich(data.pubkey, playerData);
+                    if (this.fallbackMode) {
+                        // Create 2D player
+                        this.player2D = {
+                            x: this.canvas.width / 2,
+                            y: this.canvas.height / 2,
+                            radius: 20,
+                            color: "#FF0000",
+                            name: playerModule.name || `User ${data.pubkey.substring(0, 8)}`
+                        };
+                    } else {
+                        // Create 3D player model
+                        const playerData = {
+                            name: playerModule.name || `User ${data.pubkey.substring(0, 8)}`,
+                            picture: playerModule.picture || this.defaultProfileImage,
+                            isCurrentPlayer: true
+                        };
+                        
+                        this.createOstrich(data.pubkey, playerData);
+                    }
                 }
             });
         }
     },
     
-    // Create a player model (simplified version)
+    // Create a player model for 3D mode
     createOstrich: function(pubkey, playerData = {}) {
+        if (this.fallbackMode) return null;
+        
         // Create a group for the ostrich model
         const ostrich = new THREE.Group();
         
@@ -440,10 +556,8 @@ const RelayWorld3D = {
             ostrich.add(legGroup);
         }
         
-        // PLAYER LABEL - Name and profile pic above head
-        // Get player name and image
+        // PLAYER LABEL - Name above head
         const name = playerData.name || pubkey.substring(0, 8);
-        const profileImage = playerData.picture || this.defaultProfileImage;
         
         // Create text sprite for the name
         const textSprite = this.createTextSprite(name);
@@ -477,6 +591,8 @@ const RelayWorld3D = {
     
     // Create a text sprite for player names
     createTextSprite: function(text) {
+        if (this.fallbackMode) return null;
+        
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         ctx.font = 'Bold 32px Arial';
@@ -513,8 +629,10 @@ const RelayWorld3D = {
         return sprite;
     },
     
-    // Create a collectible item
+    // Create a collectible item for 3D mode
     createCollectible: function(x, y, z, value, type = 'gem') {
+        if (this.fallbackMode) return null;
+        
         const collectible = new THREE.Group();
         collectible.position.set(x, y, z);
         
@@ -558,9 +676,26 @@ const RelayWorld3D = {
         return collectible;
     },
     
-    // Main animation loop
+    // Create 2D collectibles
+    createCollectible2D: function(x, y, value) {
+        if (!this.fallbackMode) return null;
+        
+        const collectible = {
+            x: x,
+            y: y,
+            radius: 10,
+            value: value,
+            color: "#3B82F6",
+            pulse: Math.random() * Math.PI * 2
+        };
+        
+        this.collectibles.push(collectible);
+        return collectible;
+    },
+    
+    // 3D Animation loop
     animate: function() {
-        if (!this.initialized) return;
+        if (!this.initialized || this.fallbackMode) return;
         
         requestAnimationFrame(() => this.animate());
         
@@ -570,8 +705,20 @@ const RelayWorld3D = {
         this.renderer.render(this.scene, this.camera);
     },
     
-    // Update game state
+    // 2D Animation loop
+    animate2D: function() {
+        if (!this.initialized || !this.fallbackMode) return;
+        
+        requestAnimationFrame(() => this.animate2D());
+        
+        this.update2D();
+        this.render2D();
+    },
+    
+    // Update 3D game state
     update: function(delta) {
+        if (this.fallbackMode) return;
+        
         // Get current time for animations
         const now = performance.now();
         
@@ -683,35 +830,183 @@ const RelayWorld3D = {
         }
     },
     
-    // Add a new player
-    addPlayer: function(pubkey, playerData) {
-        // Skip if player already exists
-        if (this.players.has(pubkey)) return;
+    // Update 2D game state
+    update2D: function() {
+        if (!this.fallbackMode) return;
         
-        // Create default data if not provided
-        if (!playerData) {
-            playerData = {
-                name: pubkey.substring(0, 8),
-                picture: this.defaultProfileImage,
-                x: 0,
-                y: 0
-            };
+        // Update collectibles animation
+        this.collectibles.forEach(collectible => {
+            collectible.pulse += 0.05;
+            collectible.radius = 10 + Math.sin(collectible.pulse) * 2;
+        });
+        
+        // Update player position if in demo mode
+        if (this.demoInput && this.player2D) {
+            const speed = 5;
+            if (this.demoInput.up) this.player2D.y -= speed;
+            if (this.demoInput.down) this.player2D.y += speed;
+            if (this.demoInput.left) this.player2D.x -= speed;
+            if (this.demoInput.right) this.player2D.x += speed;
+            
+            // Keep player within bounds
+            this.player2D.x = Math.max(this.player2D.radius, Math.min(this.canvas.width - this.player2D.radius, this.player2D.x));
+            this.player2D.y = Math.max(this.player2D.radius, Math.min(this.canvas.height - this.player2D.radius, this.player2D.y));
         }
         
-        return this.createOstrich(pubkey, playerData);
-    },
-    
-    // Remove a player
-    removePlayer: function(pubkey) {
-        const player = this.players.get(pubkey);
-        if (player) {
-            this.scene.remove(player.model);
-            this.players.delete(pubkey);
+        // Update player position based on game state if available
+        const playerModule = window.RelayWorldCore?.getModule('player');
+        if (playerModule && playerModule.input && this.player2D) {
+            const speed = 5;
+            if (playerModule.input.up) this.player2D.y -= speed;
+            if (playerModule.input.down) this.player2D.y += speed;
+            if (playerModule.input.left) this.player2D.x -= speed;
+            if (playerModule.input.right) this.player2D.x += speed;
+            
+            // Keep player within bounds
+            this.player2D.x = Math.max(this.player2D.radius, Math.min(this.canvas.width - this.player2D.radius, this.player2D.x));
+            this.player2D.y = Math.max(this.player2D.radius, Math.min(this.canvas.height - this.player2D.radius, this.player2D.y));
+            
+            // Update game module position
+            playerModule.x = this.player2D.x;
+            playerModule.y = this.player2D.y;
+            
+            // Check collectible collisions
+            this.checkCollectibles2D();
         }
     },
     
-    // Spawn random collectibles
+    // Render 2D game
+    render2D: function() {
+        if (!this.fallbackMode || !this.ctx2d) return;
+        
+        // Clear canvas
+        this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Draw grid background
+        this.drawGrid2D();
+        
+        // Draw collectibles
+        this.collectibles.forEach(collectible => {
+            this.ctx2d.fillStyle = collectible.color;
+            this.ctx2d.beginPath();
+            this.ctx2d.arc(collectible.x, collectible.y, collectible.radius, 0, Math.PI * 2);
+            this.ctx2d.fill();
+            
+            // Draw value
+            this.ctx2d.fillStyle = "#FFFFFF";
+            this.ctx2d.font = "10px Arial";
+            this.ctx2d.textAlign = "center";
+            this.ctx2d.fillText(collectible.value, collectible.x, collectible.y + 4);
+        });
+        
+        // Draw player
+        if (this.player2D) {
+            // Draw player circle
+            this.ctx2d.fillStyle = this.player2D.color;
+            this.ctx2d.beginPath();
+            this.ctx2d.arc(this.player2D.x, this.player2D.y, this.player2D.radius, 0, Math.PI * 2);
+            this.ctx2d.fill();
+            
+            // Draw player name
+            this.ctx2d.fillStyle = "#FFFFFF";
+            this.ctx2d.font = "14px 'Press Start 2P', sans-serif";
+            this.ctx2d.textAlign = "center";
+            this.ctx2d.fillText(this.player2D.name, this.player2D.x, this.player2D.y - 30);
+            
+            // Draw player score
+            const playerModule = window.RelayWorldCore?.getModule('player');
+            if (playerModule) {
+                this.ctx2d.fillStyle = "#FFFF00";
+                this.ctx2d.font = "12px 'Press Start 2P', sans-serif";
+                this.ctx2d.fillText(`Score: ${playerModule.score || 0}`, this.player2D.x, this.player2D.y + 40);
+            }
+        }
+        
+        // Draw coordinates
+        this.ctx2d.fillStyle = "#FFFFFF";
+        this.ctx2d.font = "12px Arial";
+        this.ctx2d.textAlign = "left";
+        this.ctx2d.fillText(`X: ${this.player2D ? Math.round(this.player2D.x) : 0}, Y: ${this.player2D ? Math.round(this.player2D.y) : 0}`, 10, 20);
+        
+        // Draw fallback mode notice
+        this.ctx2d.fillStyle = "rgba(255,215,0,0.7)";
+        this.ctx2d.font = "14px 'Press Start 2P', sans-serif";
+        this.ctx2d.textAlign = "center";
+        this.ctx2d.fillText("2D FALLBACK MODE", this.canvas.width / 2, 30);
+    },
+    
+    // Draw 2D grid background
+    drawGrid2D: function() {
+        if (!this.fallbackMode || !this.ctx2d) return;
+        
+        const gridSize = 50;
+        
+        // Calculate grid offset
+        const offsetX = this.player2D ? this.player2D.x % gridSize : 0;
+        const offsetY = this.player2D ? this.player2D.y % gridSize : 0;
+        
+        this.ctx2d.strokeStyle = "#306230";
+        this.ctx2d.lineWidth = 1;
+        
+        // Draw vertical lines
+        for (let x = -offsetX; x < this.canvas.width; x += gridSize) {
+            this.ctx2d.beginPath();
+            this.ctx2d.moveTo(x, 0);
+            this.ctx2d.lineTo(x, this.canvas.height);
+            this.ctx2d.stroke();
+        }
+        
+        // Draw horizontal lines
+        for (let y = -offsetY; y < this.canvas.height; y += gridSize) {
+            this.ctx2d.beginPath();
+            this.ctx2d.moveTo(0, y);
+            this.ctx2d.lineTo(this.canvas.width, y);
+            this.ctx2d.stroke();
+        }
+    },
+    
+    // Check collectible collisions in 2D mode
+    checkCollectibles2D: function() {
+        if (!this.fallbackMode || !this.player2D) return;
+        
+        const playerModule = window.RelayWorldCore?.getModule('player');
+        if (!playerModule) return;
+        
+        for (let i = 0; i < this.collectibles.length; i++) {
+            const collectible = this.collectibles[i];
+            const distance = Math.hypot(this.player2D.x - collectible.x, this.player2D.y - collectible.y);
+            
+            if (distance < this.player2D.radius + collectible.radius) {
+                // Collect item
+                playerModule.score = (playerModule.score || 0) + collectible.value;
+                
+                // Remove collectible
+                this.collectibles.splice(i, 1);
+                i--;
+                
+                // Update UI
+                if (typeof showToast === 'function') {
+                    showToast(`Collected +${collectible.value} points!`, "success");
+                }
+                
+                // Update profile
+                const uiModule = window.RelayWorldCore?.getModule('ui');
+                if (uiModule && typeof uiModule.updatePlayerProfile === 'function') {
+                    uiModule.updatePlayerProfile();
+                }
+                
+                // Add new collectible
+                this.spawnRandomCollectibles2D(1);
+            }
+        }
+    },
+    
+    // Spawn random collectibles for 3D mode
     spawnRandomCollectibles: function(count = 20) {
+        if (this.fallbackMode) {
+            return this.spawnRandomCollectibles2D(count);
+        }
+        
         // Clear existing collectibles
         this.collectibles.forEach(collectible => {
             this.scene.remove(collectible);
@@ -729,7 +1024,25 @@ const RelayWorld3D = {
             this.createCollectible(x, y, z, value, type);
         }
         
-        console.log(`[RelayWorld3D] Spawned ${count} collectibles`);
+        console.log(`[RelayWorld3D] Spawned ${count} collectibles in 3D mode`);
+    },
+    
+    // Spawn random collectibles for 2D mode
+    spawnRandomCollectibles2D: function(count = 20) {
+        if (!this.fallbackMode) {
+            return this.spawnRandomCollectibles(count);
+        }
+        
+        // Spawn new collectibles
+        for (let i = 0; i < count; i++) {
+            const x = Math.random() * this.canvas.width;
+            const y = Math.random() * this.canvas.height;
+            const value = Math.floor(Math.random() * 50) + 10;
+            
+            this.createCollectible2D(x, y, value);
+        }
+        
+        console.log(`[RelayWorld3D] Spawned ${count} collectibles in 2D mode`);
     }
 };
 
