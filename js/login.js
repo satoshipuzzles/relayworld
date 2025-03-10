@@ -5,13 +5,16 @@
 (function() {
   console.log('[Login] Initializing login handlers...');
   
+  // Variables to track login state and prevent duplicate attempts
+  let loginInProgress = false;
+  
   // Execute on DOM content loaded
   document.addEventListener('DOMContentLoaded', function() {
     // Fix login styling
     fixLoginStyling();
     
     // Setup login button handlers
-    setupLoginButtons();
+    initLoginHandlers();
     
     // Create toast container if it doesn't exist
     ensureToastContainer();
@@ -89,27 +92,42 @@
   }
   
   // Setup login button handlers
-  function setupLoginButtons() {
-    // NIP-07 Nostr Login Button
+  function initLoginHandlers() {
+    // Remove any existing event listeners (to prevent duplicates)
     const loginButton = document.getElementById('login-button');
+    const guestLoginButton = document.getElementById('guest-login-button');
+    
     if (loginButton) {
-      loginButton.addEventListener('click', handleNostrLogin);
+      const newLoginButton = loginButton.cloneNode(true);
+      loginButton.parentNode.replaceChild(newLoginButton, loginButton);
+      newLoginButton.addEventListener('click', handleNostrLogin);
+      console.log('[Login] Attached Nostr login handler');
     }
     
-    // Guest Login Button
-    const guestLoginButton = document.getElementById('guest-login-button');
     if (guestLoginButton) {
-      guestLoginButton.addEventListener('click', handleGuestLogin);
+      const newGuestLoginButton = guestLoginButton.cloneNode(true);
+      guestLoginButton.parentNode.replaceChild(newGuestLoginButton, guestLoginButton);
+      newGuestLoginButton.addEventListener('click', handleGuestLogin);
+      console.log('[Login] Attached guest login handler');
     }
   }
   
   // Handle Nostr login button click
   function handleNostrLogin() {
     console.log("[Login] Nostr login button clicked");
+    
+    // Prevent multiple simultaneous login attempts
+    if (loginInProgress) {
+      console.log("[Login] Login already in progress, ignoring duplicate click");
+      return;
+    }
+    
+    loginInProgress = true;
     const loginButton = document.getElementById('login-button');
     
-    if (loginButton.disabled) return;
-    loginButton.disabled = true;
+    if (loginButton) {
+      loginButton.disabled = true;
+    }
     
     const loginLoader = document.getElementById('login-loader');
     const loginStatus = document.getElementById('login-status');
@@ -122,7 +140,8 @@
       showToast('Nostr extension not found. Please install a NIP-07 extension like Alby or nos2x.', 'error');
       if (loginStatus) loginStatus.textContent = 'Nostr extension not found';
       if (loginLoader) loginLoader.classList.add('hide');
-      loginButton.disabled = false;
+      if (loginButton) loginButton.disabled = false;
+      loginInProgress = false;
       return;
     }
     
@@ -134,7 +153,8 @@
         showToast('No pubkey returned from extension', 'error');
         if (loginStatus) loginStatus.textContent = 'No pubkey returned';
         if (loginLoader) loginLoader.classList.add('hide');
-        loginButton.disabled = false;
+        if (loginButton) loginButton.disabled = false;
+        loginInProgress = false;
         return;
       }
       
@@ -159,15 +179,17 @@
         completeLogin(pubkey);
         
         showToast('Login successful!', 'success');
-        loginButton.disabled = false;
+        if (loginButton) loginButton.disabled = false;
         if (loginLoader) loginLoader.classList.add('hide');
+        loginInProgress = false;
       }, 1500);
     }).catch(error => {
       console.error('[Login] Nostr login error:', error);
       showToast(`Login error: ${error.message}`, 'error');
       if (loginStatus) loginStatus.textContent = 'Login error: ' + error.message;
       if (loginLoader) loginLoader.classList.add('hide');
-      loginButton.disabled = false;
+      if (loginButton) loginButton.disabled = false;
+      loginInProgress = false;
     });
   }
   
@@ -175,8 +197,19 @@
   function handleGuestLogin() {
     console.log("[Login] Guest login button clicked");
     
+    // Prevent multiple simultaneous login attempts
+    if (loginInProgress) {
+      console.log("[Login] Login already in progress, ignoring duplicate click");
+      return;
+    }
+    
+    loginInProgress = true;
+    
     showUsernameDialog(username => {
-      if (!username) return; // User canceled
+      if (!username) {
+        loginInProgress = false;
+        return; // User canceled
+      }
       
       const loginLoader = document.getElementById('login-loader');
       const loginStatus = document.getElementById('login-status');
@@ -185,7 +218,7 @@
       if (loginStatus) loginStatus.textContent = 'Setting up guest account...';
       
       // Generate a guest ID
-      const guestId = 'guest_' + Math.random().toString(36).substring(2, 10);
+      const guestId = 'guest_' + Math.random().toString(36).substring(2, 2);
       
       // Set player info
       const playerModule = window.RelayWorldCore?.getModule('player');
@@ -210,6 +243,7 @@
         
         showToast(`Welcome, ${username}!`, 'success');
         if (loginLoader) loginLoader.classList.add('hide');
+        loginInProgress = false;
       }, 1500);
     });
   }
@@ -340,7 +374,10 @@
     const handleSubmit = () => {
       if (validateInput()) {
         const username = input.value.trim();
-        document.body.removeChild(overlay);
+        // Only try to remove if it exists and is a child of document.body
+        if (overlay && overlay.parentNode === document.body) {
+          document.body.removeChild(overlay);
+        }
         callback(username);
       }
     };
@@ -351,7 +388,10 @@
     
     if (cancelButton) {
       cancelButton.addEventListener('click', () => {
-        document.body.removeChild(overlay);
+        // Only try to remove if it exists and is a child of document.body
+        if (overlay && overlay.parentNode === document.body) {
+          document.body.removeChild(overlay);
+        }
         callback(null);
       });
     }
@@ -369,7 +409,10 @@
     // Close when clicking outside
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        document.body.removeChild(overlay);
+        // Only try to remove if it exists and is a child of document.body
+        if (overlay && overlay.parentNode === document.body) {
+          document.body.removeChild(overlay);
+        }
         callback(null);
       }
     });
@@ -410,6 +453,7 @@
   
   // Export functions
   window.LoginModule = {
+    initLoginHandlers,
     showToast,
     showUsernameDialog,
     handleNostrLogin,
