@@ -5,49 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relay World - A Nostr Adventure Game</title>
 
-    <!-- Load THREE.js FIRST to ensure it's available before any other scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    
-    <!-- Fix THREE.js issues immediately after loading -->
+    <!-- Load THREE.js with error handling -->
     <script>
-    // Simple THREE.js fix - apply immediately
-    if (typeof THREE !== 'undefined') {
-        console.log("Applying THREE.js fixes");
-        
-        // Fix CapsuleGeometry if missing
-        if (!THREE.CapsuleGeometry) {
-            THREE.CapsuleGeometry = function(radius, height, radiusSegments, heightSegments) {
-                // Just use a cylinder as fallback
-                return new THREE.CylinderGeometry(
-                    radius, 
-                    radius, 
-                    height, 
-                    radiusSegments || 8
-                );
-            };
-            console.log("Added CapsuleGeometry replacement");
+        // Try to load THREE.js
+        try {
+            if (!window.THREE) {
+                console.log("Loading THREE.js");
+                // Create script element to load THREE.js
+                const script = document.createElement('script');
+                script.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js";
+                script.onerror = function() {
+                    console.warn("Failed to load THREE.js, 2D mode will be used");
+                };
+                document.head.appendChild(script);
+            }
+        } catch (e) {
+            console.warn("Error setting up THREE.js:", e);
         }
         
-        // Fix flatShading issue with MeshLambertMaterial
-        var originalMeshLambertMaterial = THREE.MeshLambertMaterial;
-        THREE.MeshLambertMaterial = function(params) {
-            if (params && params.flatShading !== undefined) {
-                var newParams = {};
-                for (var key in params) {
-                    if (key !== 'flatShading') {
-                        newParams[key] = params[key];
-                    }
+        // Setup simple fixes once THREE is available
+        window.applyThreeJsFixes = function() {
+            if (typeof THREE !== 'undefined') {
+                console.log("Applying THREE.js fixes");
+                
+                // Fix CapsuleGeometry if missing
+                if (!THREE.CapsuleGeometry) {
+                    THREE.CapsuleGeometry = function(radius, height, radiusSegments, heightSegments) {
+                        // Just use a cylinder as fallback
+                        return new THREE.CylinderGeometry(radius, radius, height, radiusSegments || 8);
+                    };
+                    console.log("Added CapsuleGeometry replacement");
                 }
-                return new originalMeshLambertMaterial(newParams);
+                
+                // Fix flatShading issue
+                if (THREE.MeshLambertMaterial) {
+                    const originalMeshLambertMaterial = THREE.MeshLambertMaterial;
+                    THREE.MeshLambertMaterial = function(params) {
+                        if (params && params.flatShading !== undefined) {
+                            const newParams = Object.assign({}, params);
+                            delete newParams.flatShading;
+                            return new originalMeshLambertMaterial(newParams);
+                        }
+                        return new originalMeshLambertMaterial(params);
+                    };
+                    console.log("Fixed MeshLambertMaterial");
+                }
+                
+                return true;
             }
-            return new originalMeshLambertMaterial(params);
+            return false;
         };
-        console.log("Fixed MeshLambertMaterial");
-    } else {
-        console.error("THREE.js not loaded correctly!");
-    }
+        
+        // Try to apply fixes immediately, or after load
+        if (!window.applyThreeJsFixes()) {
+            window.addEventListener('load', window.applyThreeJsFixes);
+        }
     </script>
-
+    
     <!-- Load CryptoJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
@@ -59,9 +73,6 @@
     <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/ui.css">
     <link rel="stylesheet" href="css/animations.css">
-    <link rel="stylesheet" href="css/fix.css">
-    <link rel="stylesheet" href="css/wallet-toast.css">
-    <link rel="stylesheet" href="css/login-fix.css">
     
     <!-- Critical login fixes -->
     <style>
@@ -254,8 +265,8 @@
                 
                 <!-- Login options -->
                 <div id="login-options">
-                    <button id="login-button" class="primary-button" onclick="window.LoginModule && window.LoginModule.handleNostrLogin(); console.log('Login button clicked via onclick');">CONNECT WITH NOSTR</button>
-                    <button id="guest-login-button" class="secondary-button" onclick="window.LoginModule && window.LoginModule.handleGuestLogin(); console.log('Guest login button clicked via onclick');">PLAY AS GUEST</button>
+                    <button id="login-button" class="primary-button">CONNECT WITH NOSTR</button>
+                    <button id="guest-login-button" class="secondary-button">PLAY AS GUEST</button>
                 </div>
                 
                 <div class="loader hide" id="login-loader"></div>
