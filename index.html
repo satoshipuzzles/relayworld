@@ -16,46 +16,19 @@
     <link rel="stylesheet" href="css/login-fix.css">
     <link rel="stylesheet" href="css/wallet-toast.css">
     
-    <!-- Important: Load quick-fix first to ensure compatibility -->
+    <!-- Load quick-fix as regular script (this creates global shims) -->
     <script src="js/modules/quick-fix.js"></script>
     
-    <!-- Core libraries and fixes -->
-    <script src="js/relay-world-fixes.js"></script>
+    <!-- Load THREE.js and fixes as regular scripts -->
     <script src="js/THREE.js"></script>
     <script src="js/three-simple-fix.js"></script>
     <script src="js/three-compatibility.js"></script>
     
-    <!-- Utility modules - load these early -->
-    <script src="js/utils/crypto-utils.js"></script>
-    <script src="js/utils/nostr-utils.js"></script>
-    <script src="js/utils/utils.js"></script>
-    <script src="js/utils/debug.js"></script>
+    <!-- Load all other scripts as ES modules -->
+    <script type="module" src="js/relay-world-fixes.js"></script>
     
-    <!-- Core framework -->
-    <script src="js/core/event-bus.js"></script>
-    <script src="js/core/config.js"></script>
-    <script src="js/core/relay-world-core.js"></script>
-    
-    <!-- Login -->
-    <script src="js/login.js"></script>
-    
-    <!-- Feature modules -->
-    <script src="js/modules/auth-module.js"></script>
-    <script src="js/modules/audio-module.js"></script>
-    <script src="js/modules/game-module.js"></script>
-    <script src="js/modules/items-module.js"></script>
-    <script src="js/modules/ui-module.js"></script>
-    <script src="js/modules/dm-module.js"></script>
-    <script src="js/modules/zaps-module.js"></script>
-    <script src="js/modules/marketplace-module.js"></script>
-    <script src="js/modules/guild-module.js"></script>
-    <script src="js/modules/achievements-module.js"></script>
-    
-    <!-- 3D engine -->
-    <script src="js/relay-world-3d.js"></script>
-    
-    <!-- Main application -->
-    <script src="js/main.js"></script>
+    <!-- Main script that imports all other modules -->
+    <script type="module" src="js/main.js"></script>
 </head>
 <body>
     <!-- Login Screen -->
@@ -293,5 +266,9 @@
         <div class="loading-spinner"></div>
         <div id="loading-status">Loading...</div>
     </div>
+    
+    <!-- Special script for login handlers - must be loaded separately as non-module -->
+    <script src="js/login.js"></script>
+    <script type="module" src="js/relay-world-3d.js"></script>
 </body>
 </html>
