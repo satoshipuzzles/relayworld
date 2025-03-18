@@ -3,272 +3,340 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Relay World</title>
     <link rel="icon" href="assets/icons/favicon.png">
     
-    <!-- CSS files -->
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/animations.css">
-    <link rel="stylesheet" href="css/game.css">
-    <link rel="stylesheet" href="css/ui.css">
-    <link rel="stylesheet" href="css/fix.css">
-    <link rel="stylesheet" href="css/login-fix.css">
-    <link rel="stylesheet" href="css/wallet-toast.css">
+    <!-- Load THREE.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.150.1/three.min.js"></script>
     
-    <!-- Load quick-fix as regular script (this creates global shims) -->
-    <script src="js/modules/quick-fix.js"></script>
+    <style>
+    /* Core styles */
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    .hide { display: none !important; }
     
-    <!-- Load THREE.js and fixes as regular scripts -->
-    <script src="js/THREE.js"></script>
-    <script src="js/three-simple-fix.js"></script>
-    <script src="js/three-compatibility.js"></script>
+    /* Login screen */
+    #login-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #1a1a1a;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
     
-    <!-- Load all other scripts as ES modules -->
-    <script type="module" src="js/relay-world-fixes.js"></script>
+    #login-panel {
+        text-align: center;
+        padding: 2rem;
+        background: #2a2a2a;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
     
-    <!-- Main script that imports all other modules -->
-    <script type="module" src="js/main.js"></script>
+    /* Game UI */
+    #game-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+    
+    #top-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 50px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        z-index: 100;
+    }
+    
+    #player-profile {
+        position: fixed;
+        top: 60px;
+        left: 10px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        z-index: 100;
+        min-width: 200px;
+    }
+    
+    /* Buttons */
+    button {
+        background: #4a4a4a;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+    
+    button:hover {
+        background: #5a5a5a;
+    }
+    
+    .primary-button {
+        background: #4CAF50;
+    }
+    
+    .primary-button:hover {
+        background: #45a049;
+    }
+    
+    /* Stats */
+    .stats {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .stats div {
+        margin: 5px 0;
+    }
+    </style>
 </head>
 <body>
     <!-- Login Screen -->
     <div id="login-screen">
         <div id="login-panel">
             <h1>Relay World</h1>
-            <div class="triforce-container">
-                <div class="triforce top"></div>
-                <div class="triforce left"></div>
-                <div class="triforce right"></div>
-            </div>
-            <div id="sound-wave"></div>
-            <p class="login-description">A decentralized open world game powered by Nostr</p>
+            <p>A decentralized open world game powered by Nostr</p>
             <button id="login-button" class="primary-button">LOGIN WITH NOSTR</button>
-            <button id="guest-login-button" class="secondary-button">PLAY AS GUEST</button>
-            <div id="login-loader" class="hide"></div>
-            <div id="login-status"></div>
+            <button id="guest-login-button">PLAY AS GUEST</button>
         </div>
     </div>
     
     <!-- Game Canvas -->
     <canvas id="game-canvas"></canvas>
     
-    <!-- Game UI Elements -->
-    <div id="game-container">
-        <!-- Top Bar -->
-        <div id="top-bar" class="hide">
-            <div id="logo">Relay World</div>
-            <div id="score-display">Score: 0</div>
-            <div id="logout-button">Logout</div>
-        </div>
-        
-        <!-- Player Profile -->
-        <div id="player-profile" class="hide">
-            <img id="player-profile-image" src="assets/icons/default-avatar.png" alt="Player">
-            <div id="player-profile-name">Player</div>
-            <div id="player-profile-npub">npub...</div>
-            <div class="player-stats">
-                <div class="stat-row">
-                    <div class="stat-label">Level:</div>
-                    <div id="profile-level" class="stat-value">1</div>
-                </div>
-                <div class="stat-row">
-                    <div class="stat-label">Score:</div>
-                    <div id="profile-score" class="stat-value">0</div>
-                </div>
-                <div class="stat-row">
-                    <div class="stat-label">Items:</div>
-                    <div id="profile-items" class="stat-value">0</div>
-                </div>
-                <div class="stat-row">
-                    <div class="stat-label">Interactions:</div>
-                    <div id="profile-interactions" class="stat-value">0</div>
-                </div>
-                <div class="stat-row">
-                    <div class="stat-label">Zaps:</div>
-                    <div id="profile-zaps" class="stat-value">0</div>
-                </div>
-            </div>
-            <div class="player-actions">
-                <button id="inventory-button">Inventory</button>
-                <button id="guild-button">Guild</button>
-                <button id="shop-button">Shop</button>
-            </div>
-        </div>
-        
-        <!-- Leaderboard -->
-        <div id="leaderboard-container" class="hide">
-            <div id="leaderboard-header">
-                <h3>Leaderboard</h3>
-                <div id="leaderboard-tabs">
-                    <button class="tab-button active" data-type="score">Score</button>
-                    <button class="tab-button" data-type="items">Items</button>
-                    <button class="tab-button" data-type="quests">Quests</button>
-                    <button class="tab-button" data-type="zaps">Zaps</button>
-                </div>
-            </div>
-            <div id="leaderboard-entries"></div>
-        </div>
-        
-        <!-- Chat Container -->
-        <div id="chat-container" class="hide">
-            <div id="chat-messages"></div>
-            <div id="chat-input-container">
-                <input id="chat-input" type="text" placeholder="Type a message...">
-                <button id="send-chat-button">Send</button>
-            </div>
-        </div>
-        
-        <!-- Mobile Controls -->
-        <div id="mobile-controls" class="hide">
-            <div id="mobile-control-up"></div>
-            <div id="mobile-control-down"></div>
-            <div id="mobile-control-left"></div>
-            <div id="mobile-control-right"></div>
-        </div>
-        
-        <!-- Mini Map -->
-        <canvas id="mini-map" class="hide" width="150" height="150"></canvas>
-        
-        <!-- Quest Display -->
-        <div id="quest-display" class="hide"></div>
-        
-        <!-- Weather Overlay -->
-        <div id="weather-overlay"></div>
+    <!-- Game UI -->
+    <div id="top-bar" class="hide">
+        <div id="logo">Relay World</div>
+        <div id="score">Score: <span id="score-value">0</span></div>
+        <button id="logout-button">Logout</button>
     </div>
     
-    <!-- User Popup -->
-    <div id="user-popup" class="hide">
-        <div class="user-popup-header">
-            <img id="user-popup-image" src="assets/icons/default-avatar.png" alt="User">
-            <h3 id="user-popup-name">User</h3>
-            <div id="user-popup-npub">npub...</div>
-            <button id="user-popup-close">×</button>
-        </div>
-        
-        <div class="user-popup-stats">
-            <div class="user-stat">
-                <div class="user-stat-label">Level:</div>
-                <div id="user-level" class="user-stat-value">1</div>
-            </div>
-            <div class="user-stat">
-                <div class="user-stat-label">Score:</div>
-                <div id="user-score" class="user-stat-value">0</div>
-            </div>
-            <div class="user-stat">
-                <div class="user-stat-label">Guild:</div>
-                <div id="user-guild" class="user-stat-value">None</div>
-            </div>
-            <div class="user-stat">
-                <div class="user-stat-label">Faction:</div>
-                <div id="user-faction" class="user-stat-value">None</div>
-            </div>
-        </div>
-        
-        <div class="user-popup-actions">
-            <button id="follow-button" class="user-popup-button">Follow</button>
-            <button id="chat-button" class="user-popup-button">Chat</button>
-            <button id="voice-chat-button" class="user-popup-button">Voice Chat</button>
-            <button id="trade-button" class="user-popup-button">Trade</button>
-            <button id="zap-button" class="user-popup-button">Zap</button>
-        </div>
-        
-        <div class="user-popup-notes">
-            <h4>Recent Notes</h4>
-            <div id="user-notes"></div>
+    <div id="player-profile" class="hide">
+        <img id="player-avatar" src="assets/icons/default-avatar.png" width="64" height="64">
+        <h3 id="player-name">Player</h3>
+        <div id="player-id"></div>
+        <div class="stats">
+            <div>Level: <span id="player-level">1</span></div>
+            <div>Score: <span id="player-score">0</span></div>
         </div>
     </div>
     
-    <!-- Inventory Interface -->
-    <div id="inventory-interface" class="hide">
-        <div class="inventory-header">
-            <h3>Inventory</h3>
-            <button id="inventory-close">×</button>
-        </div>
-        <div id="inventory-content"></div>
-    </div>
+    <script>
+    // Game core
+    const Game = {
+        state: {
+            initialized: false,
+            loggedIn: false,
+            player: null,
+            score: 0
+        },
+        
+        // Initialize game
+        init() {
+            console.log('[Game] Initializing...');
+            
+            // Set up THREE.js scene
+            this.setupScene();
+            
+            // Set up event listeners
+            this.setupEventListeners();
+            
+            // Mark as initialized
+            this.state.initialized = true;
+            console.log('[Game] Initialized');
+        },
+        
+        // Set up THREE.js scene
+        setupScene() {
+            try {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas') });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                // Add some basic geometry
+                const geometry = new THREE.BoxGeometry();
+                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                this.cube = new THREE.Mesh(geometry, material);
+                this.scene.add(this.cube);
+                
+                this.camera.position.z = 5;
+                
+                // Start animation loop
+                this.animate();
+                
+                console.log('[Game] 3D scene setup complete');
+            } catch (error) {
+                console.error('[Game] Failed to setup 3D scene:', error);
+                this.setup2DFallback();
+            }
+        },
+        
+        // Set up 2D fallback
+        setup2DFallback() {
+            console.log('[Game] Setting up 2D fallback');
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Simple 2D animation
+            const draw2D = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                ctx.fillStyle = '#2a2a2a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#4CAF50';
+                ctx.fillRect(canvas.width/2 - 50, canvas.height/2 - 50, 100, 100);
+                
+                requestAnimationFrame(draw2D);
+            };
+            
+            draw2D();
+        },
+        
+        // Animation loop
+        animate() {
+            if (!this.scene || !this.camera || !this.renderer) return;
+            
+            requestAnimationFrame(() => this.animate());
+            
+            if (this.cube) {
+                this.cube.rotation.x += 0.01;
+                this.cube.rotation.y += 0.01;
+            }
+            
+            this.renderer.render(this.scene, this.camera);
+        },
+        
+        // Set up event listeners
+        setupEventListeners() {
+            // Login buttons
+            document.getElementById('guest-login-button').addEventListener('click', () => this.handleGuestLogin());
+            document.getElementById('login-button').addEventListener('click', () => this.handleNostrLogin());
+            document.getElementById('logout-button').addEventListener('click', () => this.handleLogout());
+            
+            // Window resize
+            window.addEventListener('resize', () => this.handleResize());
+        },
+        
+        // Handle guest login
+        handleGuestLogin() {
+            console.log('[Game] Guest login');
+            
+            // Create guest player
+            this.state.player = {
+                id: 'guest_' + Date.now().toString(36),
+                name: 'Guest ' + Math.random().toString(36).substring(2, 6),
+                isGuest: true,
+                level: 1,
+                score: 0
+            };
+            
+            // Update UI
+            this.updateUI();
+            
+            // Hide login screen
+            document.getElementById('login-screen').classList.add('hide');
+            
+            // Show game UI
+            document.getElementById('top-bar').classList.remove('hide');
+            document.getElementById('player-profile').classList.remove('hide');
+            
+            // Mark as logged in
+            this.state.loggedIn = true;
+            
+            // Store login state
+            try {
+                localStorage.setItem('relayworld_login', JSON.stringify(this.state.player));
+            } catch (e) {
+                console.warn('[Game] Failed to store login state:', e);
+            }
+        },
+        
+        // Handle Nostr login
+        handleNostrLogin() {
+            console.log('[Game] Nostr login not implemented');
+            alert('Nostr login will be implemented soon!');
+        },
+        
+        // Handle logout
+        handleLogout() {
+            try {
+                localStorage.removeItem('relayworld_login');
+            } catch (e) {
+                console.warn('[Game] Failed to clear login state:', e);
+            }
+            location.reload();
+        },
+        
+        // Handle window resize
+        handleResize() {
+            if (this.camera && this.renderer) {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        },
+        
+        // Update UI elements
+        updateUI() {
+            if (!this.state.player) return;
+            
+            document.getElementById('player-name').textContent = this.state.player.name;
+            document.getElementById('player-id').textContent = this.state.player.id;
+            document.getElementById('player-level').textContent = this.state.player.level;
+            document.getElementById('player-score').textContent = this.state.player.score;
+            document.getElementById('score-value').textContent = this.state.player.score;
+        },
+        
+        // Update score
+        updateScore(points) {
+            if (!this.state.player) return;
+            
+            this.state.player.score += points;
+            this.updateUI();
+        },
+        
+        // Check for previous login
+        checkPreviousLogin() {
+            try {
+                const stored = localStorage.getItem('relayworld_login');
+                if (stored) {
+                    this.state.player = JSON.parse(stored);
+                    this.handleGuestLogin();
+                }
+            } catch (e) {
+                console.warn('[Game] Failed to restore login state:', e);
+            }
+        }
+    };
     
-    <!-- DM Panel -->
-    <div id="dm-panel" class="hide">
-        <div class="dm-header">
-            <h3 id="dm-title">Direct Messages</h3>
-            <button id="dm-close">×</button>
-        </div>
-        <div class="dm-container">
-            <div id="dm-list"></div>
-            <div class="dm-chat">
-                <div id="dm-messages"></div>
-                <div class="dm-input-container">
-                    <input id="dm-input" type="text" placeholder="Type a message...">
-                    <button id="dm-send">Send</button>
-                    <button id="dm-file">📎</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Zap Interface -->
-    <div id="zap-interface" class="hide">
-        <div class="zap-header">
-            <h3>Send Zap</h3>
-            <button id="zap-close">×</button>
-        </div>
-        <div class="zap-target">
-            <img id="zap-target-image" src="assets/icons/default-avatar.png" alt="Target">
-            <div id="zap-target-name">User</div>
-        </div>
-        <div class="zap-amount-container">
-            <div class="zap-presets">
-                <button class="zap-preset active" data-amount="21">21</button>
-                <button class="zap-preset" data-amount="210">210</button>
-                <button class="zap-preset" data-amount="2100">2100</button>
-                <button class="zap-preset" data-amount="21000">21k</button>
-            </div>
-            <input id="zap-amount" type="number" value="21" min="1">
-            <span>sats</span>
-        </div>
-        <div class="zap-message-container">
-            <textarea id="zap-message" placeholder="Add a message (optional)"></textarea>
-        </div>
-        <button id="zap-send-button">Send Zap</button>
-    </div>
-    
-    <!-- Bitcoin Connect Modal -->
-    <div id="bitcoin-connect-modal" class="hide">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="bc-modal-title">Connect Lightning Wallet</h3>
-                <button id="bc-modal-close">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="bc-connectors">
-                    <div class="bc-connector" data-connector="alby">
-                        <img src="assets/icons/alby.png" alt="Alby">
-                        <span>Alby</span>
-                    </div>
-                    <div class="bc-connector" data-connector="webln">
-                        <img src="assets/icons/webln.png" alt="WebLN">
-                        <span>WebLN</span>
-                    </div>
-                    <div class="bc-connector" data-connector="nwc">
-                        <img src="assets/icons/nwc.png" alt="NWC">
-                        <span>NWC</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Toast Container -->
-    <div id="toast-container"></div>
-    
-    <!-- Loading Indicator -->
-    <div id="loading-indicator" class="hide">
-        <div class="loading-spinner"></div>
-        <div id="loading-status">Loading...</div>
-    </div>
-    
-    <!-- Special script for login handlers - must be loaded separately as non-module -->
-    <script src="js/login.js"></script>
-    <script type="module" src="js/relay-world-3d.js"></script>
+    // Initialize game when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        Game.init();
+        Game.checkPreviousLogin();
+    });
+    </script>
 </body>
-</html>
+</html> 
