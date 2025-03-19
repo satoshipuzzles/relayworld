@@ -31,7 +31,9 @@
     "eslint": "^8.41.0",
     "serve": "^14.2.0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "three": "^0.162.0"
+  },
   "engines": {
     "node": ">=16.0.0"
   },

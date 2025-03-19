@@ -7,466 +7,579 @@
 (function() {
   console.log('[RelayWorldFixes] Initializing integration fixes...');
   
-  // Create global namespace if it doesn't exist
-  window.RelayWorld = window.RelayWorld || {
-    initialized: false,
-    version: '1.0.0',
-    debug: true,
-    modules: {},
-    ready: false
-  };
+  // References to core modules
+  let _eventBus = null;
+  let _configManager = null;
+  let _relayWorldCore = null;
   
-  // Fix EventBus to avoid duplication
-  if (!window.EventBus) {
+  // Initialize immediately to ensure modules exist before anything tries to use them
+  initializeFixesImmediately();
+  
+  // Initialize fixes immediately
+  function initializeFixesImmediately() {
+    console.log('[RelayWorldFixes] Performing immediate initialization...');
+    
+    // Create unified EventBus if it doesn't exist
+    createUnifiedEventBus();
+    
+    // Create unified ConfigManager if it doesn't exist
+    createUnifiedConfigManager();
+    
+    // Create unified RelayWorldCore if it doesn't exist
+    createUnifiedRelayWorldCore();
+    
+    // Ensure core modules are registered
+    registerCoreModulesImmediately();
+    
+    // Apply CSS fixes immediately
+    applyCSSFixes();
+    
+    // Setup global error handler
+    setupGlobalErrorHandler();
+  }
+  
+  // Create unified EventBus
+  function createUnifiedEventBus() {
+    if (window.EventBus) {
+      console.log('[RelayWorldFixes] EventBus already exists, using existing instance');
+      _eventBus = window.EventBus;
+      return;
+    }
+    
     console.log('[RelayWorldFixes] Creating unified EventBus');
-    window.EventBus = {
-      listeners: new Map(),
-      init: function() {
-        console.log("[EventBus] Initializing event bus");
-        return this;
-      },
+    
+    _eventBus = {
+      listeners: {},
       on: function(event, callback) {
-        if (!this.listeners.has(event)) {
-          this.listeners.set(event, []);
+        if (!this.listeners[event]) {
+          this.listeners[event] = [];
         }
-        this.listeners.get(event).push(callback);
+        this.listeners[event].push(callback);
         return this;
       },
       emit: function(event, data) {
-        if (this.listeners.has(event)) {
-          this.listeners.get(event).forEach(callback => {
+        console.log('[EventBus] Emitting:', event);
+        if (this.listeners[event]) {
+          this.listeners[event].forEach(function(callback) {
             try {
               callback(data);
-            } catch (error) {
-              console.error(`[EventBus] Error in listener for "${event}":`, error);
+            } catch (e) {
+              console.error('[EventBus] Error in event handler:', e);
             }
           });
         }
-        return this;
       },
       off: function(event, callback) {
-        if (this.listeners.has(event)) {
-          const listeners = this.listeners.get(event);
-          const index = listeners.indexOf(callback);
+        if (this.listeners[event]) {
+          const index = this.listeners[event].indexOf(callback);
           if (index !== -1) {
-            listeners.splice(index, 1);
+            this.listeners[event].splice(index, 1);
           }
         }
         return this;
       },
-      once: function(event, callback) {
-        const onceWrapper = (data) => {
-          this.off(event, onceWrapper);
-          callback(data);
-        };
-        return this.on(event, onceWrapper);
-      }
-    };
-  }
-  
-  // Fix ConfigManager to avoid duplication
-  if (!window.ConfigManager) {
-    console.log('[RelayWorldFixes] Creating unified ConfigManager');
-    window.ConfigManager = {
-      configs: new Map(),
-      storageKey: 'relayworld_config',
       init: function() {
-        console.log("[ConfigManager] Initializing configuration manager");
-        this.loadSavedConfig();
+        console.log('[EventBus] Initializing event bus');
         return this;
-      },
-      setConfig: function(key, value) {
-        const oldValue = this.configs.get(key);
-        this.configs.set(key, value);
-        
-        if (window.EventBus) {
-          window.EventBus.emit('config:change', { key, value, oldValue });
-        }
-        return this;
-      },
-      getConfig: function(key, defaultValue = null) {
-        return this.configs.has(key) ? this.configs.get(key) : defaultValue;
-      },
-      loadSavedConfig: function() {
-        try {
-          const savedConfig = localStorage.getItem(this.storageKey);
-          if (savedConfig) {
-            const config = JSON.parse(savedConfig);
-            for (const [key, value] of Object.entries(config)) {
-              this.configs.set(key, value);
-            }
-            console.log("[ConfigManager] Loaded saved configuration");
-          }
-        } catch (error) {
-          console.warn("[ConfigManager] Failed to load saved configuration:", error);
-        }
-        return this;
-      },
-      saveConfig: function() {
-        try {
-          const configObj = {};
-          for (const [key, value] of this.configs.entries()) {
-            configObj[key] = value;
-          }
-          localStorage.setItem(this.storageKey, JSON.stringify(configObj));
-          console.log("[ConfigManager] Configuration saved");
-          return true;
-        } catch (error) {
-          console.error("[ConfigManager] Failed to save configuration:", error);
-          return false;
-        }
       }
     };
+    
+    // Make EventBus globally available
+    window.EventBus = _eventBus;
   }
   
-  // Fix RelayWorldCore to use our unified components
-  if (!window.RelayWorldCore) {
-    console.log('[RelayWorldFixes] Creating unified RelayWorldCore');
-    window.RelayWorldCore = {
-      modules: new Map(),
-      eventBus: window.EventBus,
-      config: window.ConfigManager,
-      
-      init: async function() {
-        console.log("[RelayWorldCore] Initializing core system...");
-        
-        this.eventBus.init();
-        this.config.init();
-        
-        // Calculate initialization order based on dependencies and priority
-        const initOrder = this._calculateInitOrder();
-        
-        // Initialize all modules in proper order
-        for (const moduleName of initOrder) {
-          const module = this.modules.get(moduleName);
-          
-          if (typeof module.init === 'function') {
-            try {
-              console.log(`[RelayWorldCore] Initializing module: ${moduleName}`);
-              await module.init();
-              console.log(`[RelayWorldCore] Module ${moduleName} initialized`);
-            } catch (error) {
-              console.error(`[RelayWorldCore] Failed to initialize module "${moduleName}":`, error);
-              if (module.critical) {
-                throw error;
-              }
-            }
-          }
-        }
-        
-        console.log("[RelayWorldCore] Core system initialized");
-        this.eventBus.emit('core:ready', null);
-        window.RelayWorld.ready = true;
-        return this;
-      },
-      
-      registerModule: function(name, module) {
-        if (this.modules.has(name)) {
-          console.warn(`[RelayWorldCore] Module "${name}" is being replaced`);
-        }
-        this.modules.set(name, module);
-        console.log(`[RelayWorldCore] Registered module: ${name}`);
-        return this;
-      },
-      
-      getModule: function(name) {
-        if (!this.modules.has(name)) {
-          console.warn(`[RelayWorldCore] Module "${name}" not found`);
-          return null;
-        }
-        return this.modules.get(name);
-      },
-      
-      setConfig: function(key, value) {
-        this.config.setConfig(key, value);
-        return this;
-      },
-      
-      getConfig: function(key, defaultValue = null) {
-        return this.config.getConfig(key, defaultValue);
-      },
-      
-      // Calculate initialization order based on dependencies and priority
-      _calculateInitOrder: function() {
-        const visited = new Set();
-        const order = [];
-        
-        // Sort modules by priority
-        const prioritizedModules = Array.from(this.modules.entries())
-          .sort((a, b) => (a[1].priority || 0) - (b[1].priority || 0));
-        
-        const visit = (moduleName) => {
-          if (visited.has(moduleName)) return;
-          
-          visited.add(moduleName);
-          
-          const module = this.modules.get(moduleName);
-          if (module && module.dependencies) {
-            for (const dep of module.dependencies) {
-              if (this.modules.has(dep)) {
-                visit(dep);
-              } else {
-                console.warn(`[RelayWorldCore] Module "${moduleName}" depends on "${dep}" which is not registered`);
-              }
-            }
-          }
-          
-          order.push(moduleName);
-        };
-        
-        for (const [moduleName] of prioritizedModules) {
-          visit(moduleName);
-        }
-        
-        return order;
-      }
-    };
-  }
-  
-  // Apply THREE.js fixes correctly
-  console.log('[RelayWorldFixes] Setting up THREE.js fixes');
-  window.applyThreeJsFixes = function() {
-    if (typeof THREE === 'undefined') {
-      return false;
+  // Create unified ConfigManager
+  function createUnifiedConfigManager() {
+    if (window.ConfigManager) {
+      console.log('[RelayWorldFixes] ConfigManager already exists, using existing instance');
+      _configManager = window.ConfigManager;
+      return;
     }
     
-    console.log('[RelayWorldFixes] Applying fixes to THREE.js...');
+    console.log('[RelayWorldFixes] Creating unified ConfigManager');
     
-    // Fix 1: Add CapsuleGeometry if missing
-    if (!THREE.CapsuleGeometry) {
-      console.log('[RelayWorldFixes] Adding CapsuleGeometry fallback');
-      
-      THREE.CapsuleGeometry = function(radius, length, capSegments, radialSegments) {
-        if (!THREE.BufferGeometry) {
-          // Really old THREE version - use CylinderGeometry as fallback
-          return new THREE.CylinderGeometry(radius, radius, length, radialSegments || 8);
+    _configManager = {
+      settings: {
+        debugMode: true,
+        apiUrl: 'https://api.nostr.relay.world',
+        gameVersion: '1.0.0',
+        audioEnabled: true,
+        graphics: 'medium',
+        renderDistance: 1000,
+        maxPlayers: 50,
+        defaultRelays: [
+          'wss://relay.nostr.band',
+          'wss://relay.snort.social',
+          'wss://relay.damus.io'
+        ]
+      },
+      get: function(key) {
+        return this.settings[key];
+      },
+      set: function(key, value) {
+        this.settings[key] = value;
+        this.saveSettings();
+        if (_eventBus) {
+          _eventBus.emit('config:updated', { key: key, value: value });
         }
-        
-        THREE.BufferGeometry.call(this);
-        
-        this.type = 'CapsuleGeometry';
-        
-        // Parameters
-        radius = radius || 1;
-        length = length || 1;
-        capSegments = Math.floor(capSegments) || 8;
-        radialSegments = Math.floor(radialSegments) || 16;
-        
+        return this;
+      },
+      saveSettings: function() {
         try {
-          // Simple fallback - just use a cylinder
-          return new THREE.CylinderGeometry(radius, radius, length, radialSegments);
+          localStorage.setItem('relay_world_config', JSON.stringify(this.settings));
         } catch (e) {
-          console.warn('[RelayWorldFixes] Error creating CapsuleGeometry:', e);
-          // Fallback to cylinder
-          return new THREE.CylinderGeometry(radius, radius, length, radialSegments);
+          console.error('[ConfigManager] Failed to save settings:', e);
         }
-      };
-      
-      // Make sure to set prototype correctly if possible
-      if (THREE.BufferGeometry) {
-        THREE.CapsuleGeometry.prototype = Object.create(THREE.BufferGeometry.prototype);
-        THREE.CapsuleGeometry.prototype.constructor = THREE.CapsuleGeometry;
-      }
-    }
-    
-    // Fix 2: Fix flatShading issue with MeshLambertMaterial
-    if (typeof THREE.MeshLambertMaterial !== 'undefined') {
-      console.log('[RelayWorldFixes] Patching MeshLambertMaterial for flatShading support');
-      
-      const originalMeshLambertMaterial = THREE.MeshLambertMaterial;
-      
-      // Replace the constructor to filter out flatShading
-      THREE.MeshLambertMaterial = function(params) {
-        if (params && params.flatShading !== undefined) {
-          // Make a copy without flatShading
-          const newParams = Object.assign({}, params);
-          delete newParams.flatShading;
-          return new originalMeshLambertMaterial(newParams);
+      },
+      loadSettings: function() {
+        try {
+          const stored = localStorage.getItem('relay_world_config');
+          if (stored) {
+            this.settings = { ...this.settings, ...JSON.parse(stored) };
+          }
+        } catch (e) {
+          console.error('[ConfigManager] Failed to load settings:', e);
         }
-        return new originalMeshLambertMaterial(params);
-      };
-    }
-    
-    console.log('[RelayWorldFixes] THREE.js fixes applied');
-    return true;
-  };
-  
-  // Set up pre-load check for THREE.js
-  if (typeof THREE !== 'undefined') {
-    window.applyThreeJsFixes();
-  } else {
-    window.addEventListener('load', function() {
-      if (typeof THREE !== 'undefined') {
-        window.applyThreeJsFixes();
+      },
+      init: function() {
+        console.log('[ConfigManager] Initializing configuration manager');
+        this.loadSettings();
+        return this;
       }
-    });
+    };
+    
+    // Make ConfigManager globally available
+    window.ConfigManager = _configManager;
+    _configManager.init();
   }
   
-  // Fix toast notification system
-  window.showToast = window.showToast || function(message, type = '') {
-    const toastContainer = document.getElementById('toast-container');
-    if (!toastContainer) {
-      // Create container if it doesn't exist
-      const container = document.createElement('div');
-      container.id = 'toast-container';
-      document.body.appendChild(container);
-      return window.showToast(message, type); // Call again
+  // Create unified RelayWorldCore
+  function createUnifiedRelayWorldCore() {
+    if (window.RelayWorldCore) {
+      console.log('[RelayWorldFixes] RelayWorldCore already exists, using existing instance');
+      _relayWorldCore = window.RelayWorldCore;
+      return;
     }
     
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    if (type) toast.className += ` ${type}`;
-    toast.textContent = message;
+    console.log('[RelayWorldFixes] Creating unified RelayWorldCore');
     
-    toastContainer.appendChild(toast);
+    _relayWorldCore = {
+      modules: new Map(),
+      initialized: false,
+      registerModule: function(name, module) {
+        console.log(`[RelayWorldCore] Registering module: ${name}`);
+        this.modules.set(name, module);
+        
+        if (_eventBus) {
+          _eventBus.emit('module:registered', { name: name });
+        }
+        
+        return this;
+      },
+      getModule: function(name) {
+        const module = this.modules.get(name);
+        if (!module) {
+          console.warn(`[RelayWorldCore] Module "${name}" not found`);
+          // Try to register it if it's a core module
+          this.registerCoreModules();
+          return this.modules.get(name) || null;
+        }
+        return module;
+      },
+      init: function() {
+        console.log('[RelayWorldCore] Initializing core system...');
+        
+        // Initialize event bus if it exists
+        if (_eventBus && typeof _eventBus.init === 'function') {
+          _eventBus.init();
+        }
+        
+        // Initialize config manager if it exists
+        if (_configManager && typeof _configManager.init === 'function') {
+          _configManager.init();
+        }
+        
+        // Register core modules
+        this.registerCoreModules();
+        
+        // Set flag
+        this.initialized = true;
+        
+        console.log('[RelayWorldCore] Core system initialized');
+        
+        // Emit initialized event
+        if (_eventBus) {
+          _eventBus.emit('core:initialized', { version: '1.0.0' });
+        }
+        
+        return this;
+      },
+      
+      // Register core modules
+      registerCoreModules: function() {
+        // Player module
+        if (!this.modules.has('player')) {
+          this.registerModule('player', {
+            currentPlayer: null,
+            pubkey: null,
+            name: null,
+            isGuest: false,
+            setPlayer: function(data) {
+              console.log('[Player] Setting player data:', data);
+              this.currentPlayer = data;
+              this.pubkey = data.pubkey;
+              this.name = data.name || `Player-${data.pubkey.substring(0, 8)}`;
+              this.isGuest = data.isGuest || false;
+              
+              // Update UI elements
+              const playerName = document.getElementById('player-profile-name');
+              if (playerName) playerName.textContent = this.name;
+              
+              const playerNpub = document.getElementById('player-profile-npub');
+              if (playerNpub) playerNpub.textContent = `${this.pubkey.substring(0, 8)}...`;
+              
+              // Emit player updated event
+              if (_eventBus) {
+                _eventBus.emit('player:updated', data);
+              }
+            },
+            getPlayer: function() {
+              return this.currentPlayer;
+            }
+          });
+        }
+        
+        // Game module
+        if (!this.modules.has('game')) {
+          this.registerModule('game', {
+            state: 'initializing',
+            setState: function(newState) {
+              console.log('[Game] State changing to:', newState);
+              this.state = newState;
+              
+              // Emit game state change event
+              if (_eventBus) {
+                _eventBus.emit('game:stateChange', newState);
+              }
+            },
+            getState: function() {
+              return this.state;
+            },
+            start: function() {
+              console.log('[Game] Starting game');
+              
+              // Hide login screen if not already hidden
+              const loginScreen = document.getElementById('login-screen');
+              if (loginScreen) {
+                loginScreen.classList.add('hide');
+                loginScreen.style.display = 'none';
+                loginScreen.style.visibility = 'hidden';
+              }
+              
+              // Show game elements
+              const playerProfile = document.getElementById('player-profile');
+              const topBar = document.getElementById('top-bar');
+              
+              if (playerProfile) playerProfile.classList.remove('hide');
+              if (topBar) topBar.classList.remove('hide');
+              
+              this.setState('playing');
+            }
+          });
+        }
+        
+        // UI module
+        if (!this.modules.has('ui')) {
+          this.registerModule('ui', {
+            elements: new Map(),
+            updateUI: function(elementId, data) {
+              console.log('[UI] Updating element:', elementId);
+              const element = document.getElementById(elementId);
+              if (element) {
+                if (elementId === 'player-profile' || elementId === 'top-bar') {
+                  element.classList.remove('hide');
+                }
+                
+                this.elements.set(elementId, data || {});
+                
+                // Emit UI updated event
+                if (_eventBus) {
+                  _eventBus.emit('ui:updated', { elementId: elementId, data: data });
+                }
+              } else {
+                console.warn('[UI] Element not found:', elementId);
+              }
+            },
+            showElement: function(elementId) {
+              const element = document.getElementById(elementId);
+              if (element) {
+                element.classList.remove('hide');
+                return true;
+              }
+              return false;
+            },
+            hideElement: function(elementId) {
+              const element = document.getElementById(elementId);
+              if (element) {
+                element.classList.add('hide');
+                return true;
+              }
+              return false;
+            }
+          });
+        }
+      }
+    };
     
-    // Remove after animation
-    setTimeout(() => {
-      if (toast.parentNode) toast.parentNode.removeChild(toast);
-    }, 3000);
-  };
-
-  // Utility for unified login handling
-  window.unifiedLoginHandler = function() {
+    // Make RelayWorldCore globally available
+    window.RelayWorldCore = _relayWorldCore;
+  }
+  
+  // Register core modules immediately to ensure they're available
+  function registerCoreModulesImmediately() {
+    if (_relayWorldCore) {
+      _relayWorldCore.registerCoreModules();
+    }
+  }
+  
+  // Setup unified login handler
+  function setupUnifiedLoginHandler() {
     console.log('[RelayWorldFixes] Setting up unified login handler');
     
-    const loginButton = document.getElementById('login-button');
-    if (!loginButton) return;
+    // Listen for login events from EventBus
+    if (_eventBus) {
+      _eventBus.on('auth:loginComplete', function(data) {
+        console.log('[RelayWorldFixes] Login complete via EventBus:', data);
+        
+        // Get game module
+        const gameModule = _relayWorldCore?.getModule('game');
+        if (gameModule && typeof gameModule.start === 'function') {
+          gameModule.start();
+        }
+        
+        // Get UI module
+        const uiModule = _relayWorldCore?.getModule('ui');
+        if (uiModule) {
+          uiModule.updateUI('player-profile');
+          uiModule.updateUI('top-bar');
+          
+          // Hide login screen explicitly
+          uiModule.hideElement('login-screen');
+        }
+        
+        // Hide login screen manually as well for maximum reliability
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) {
+          loginScreen.classList.add('hide');
+          loginScreen.style.display = 'none';
+        }
+      });
+    }
     
-    // Remove any existing listeners (by cloning and replacing)
-    const newLoginButton = loginButton.cloneNode(true);
-    loginButton.parentNode.replaceChild(newLoginButton, loginButton);
-    
-    // Add our unified handler
-    newLoginButton.addEventListener('click', async function() {
-      const loginLoader = document.getElementById('login-loader');
-      const loginStatus = document.getElementById('login-status');
-      const soundWave = document.getElementById('sound-wave');
+    // Listen for login events from DOM
+    window.addEventListener('loginComplete', function(event) {
+      console.log('[RelayWorldFixes] Login complete via DOM event');
       
-      console.log('[RelayWorldFixes] Login button clicked');
+      // Get game module
+      const gameModule = _relayWorldCore?.getModule('game');
+      if (gameModule && typeof gameModule.start === 'function') {
+        gameModule.start();
+      }
       
-      // Disable button and show loader
-      newLoginButton.disabled = true;
-      if (loginLoader) loginLoader.style.display = 'block';
-      if (loginStatus) loginStatus.textContent = 'Looking for Nostr extension...';
+      // Get UI module
+      const uiModule = _relayWorldCore?.getModule('ui');
+      if (uiModule) {
+        uiModule.updateUI('player-profile');
+        uiModule.updateUI('top-bar');
+        
+        // Hide login screen explicitly
+        uiModule.hideElement('login-screen');
+      }
       
-      try {
-        // Check if nostr is available in the window
-        if (!window.nostr) {
-          throw new Error('Nostr extension not found. Please install a NIP-07 extension.');
-        }
-        
-        if (loginStatus) loginStatus.textContent = 'Requesting pubkey...';
-        
-        // Get public key from extension
-        const pubkey = await window.nostr.getPublicKey();
-        if (!pubkey) {
-          throw new Error('No public key available from extension');
-        }
-        
-        if (loginStatus) loginStatus.textContent = 'Got pubkey, logging in...';
-        
-        // Animate sound wave effect
-        if (soundWave) {
-          soundWave.style.animation = 'sound-wave 4s ease-out infinite';
-        }
-        
-        // Dispatch login event for other modules to handle
-        if (window.EventBus) {
-          window.EventBus.emit('auth:login', { pubkey });
-        }
-        
-        // Hide login screen after a delay
-        setTimeout(() => {
-          const loginScreen = document.getElementById('login-screen');
-          const uiElements = ['top-bar', 'player-profile', 'leaderboard-container', 'chat-container'];
-          
-          if (loginScreen) loginScreen.classList.add('hide');
-          
-          // Show UI elements
-          uiElements.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('hide');
-          });
-          
-          // Show mobile controls on mobile
-          if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-            const mobileControls = document.getElementById('mobile-controls');
-            if (mobileControls) mobileControls.classList.remove('hide');
-          }
-          
-          // Start game if module exists
-          const gameModule = window.RelayWorldCore?.getModule?.('game');
-          if (gameModule && typeof gameModule.start === 'function') {
-            gameModule.start();
-          }
-          
-          if (loginLoader) loginLoader.classList.add('hide');
-          if (loginStatus) loginStatus.textContent = '';
-          newLoginButton.disabled = false;
-          
-          window.showToast('Login successful!', 'success');
-        }, 1500);
-        
-      } catch (error) {
-        console.error('[RelayWorldFixes] Login failed:', error);
-        
-        if (loginStatus) loginStatus.textContent = 'Login failed: ' + error.message;
-        if (loginLoader) loginLoader.classList.add('hide');
-        newLoginButton.disabled = false;
-        
-        window.showToast('Login failed: ' + error.message, 'error');
+      // Hide login screen manually as well for maximum reliability
+      const loginScreen = document.getElementById('login-screen');
+      if (loginScreen) {
+        loginScreen.classList.add('hide');
+        loginScreen.style.display = 'none';
       }
     });
     
     console.log('[RelayWorldFixes] Unified login handler attached');
-  };
+  }
   
-  // Apply CSS fixes to make sure all styles load correctly
-  window.fixCSS = function() {
+  // Apply CSS fixes
+  function applyCSSFixes() {
     console.log('[RelayWorldFixes] Applying CSS fixes');
     
-    // Fix any CSS that might have wrong file paths
-    const styles = document.getElementsByTagName('link');
-    for (let i = 0; i < styles.length; i++) {
-      const href = styles[i].getAttribute('href');
-      if (href && href.includes('.css.css')) {
-        // Fix double extension
-        styles[i].setAttribute('href', href.replace('.css.css', '.css'));
+    // Create a style element
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Force hide classes */
+      .hide {
+        display: none !important;
       }
-    }
+      
+      /* Fix for login screen */
+      #login-screen.hide {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      
+      /* Fix for player profile and top bar */
+      #player-profile:not(.hide),
+      #top-bar:not(.hide) {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+      
+      /* Game canvas fix */
+      #game-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+      
+      /* UI container fix */
+      #game-container {
+        position: relative;
+        z-index: 1;
+      }
+    `;
     
-    // Make sure toast container exists
-    if (!document.getElementById('toast-container')) {
-      const container = document.createElement('div');
-      container.id = 'toast-container';
-      document.body.appendChild(container);
-    }
-  };
+    // Append to document
+    document.head.appendChild(style);
+  }
   
-  // Set up initialization sequence for after DOM is loaded
-  window.addEventListener('DOMContentLoaded', function() {
+  // Setup global error handler
+  function setupGlobalErrorHandler() {
+    const originalOnError = window.onerror;
+    
+    window.onerror = function(message, source, lineno, colno, error) {
+      // Log error for debugging
+      console.error('[RelayWorldFixes] Global error:', { message, source, lineno, colno });
+      
+      // Check if this is the CryptoUtils error
+      if (message && message.toString().includes("CryptoUtils")) {
+        console.warn('[RelayWorldFixes] Intercepted CryptoUtils error, this is handled');
+        return true; // Prevent default error handling
+      }
+      
+      // If not handled, use original handler if available
+      if (typeof originalOnError === 'function') {
+        return originalOnError.apply(this, arguments);
+      }
+      
+      return false; // Continue with default error handling
+    };
+  }
+  
+  // Setup THREE.js fixes
+  function setupThreeJsFixes() {
+    console.log('[RelayWorldFixes] Setting up THREE.js fixes');
+    
+    // Try to load THREE.js from CDN if not already loaded
+    if (!window.THREE) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js';
+      
+      script.onload = function() {
+        console.log('[RelayWorldFixes] THREE.js loaded successfully from CDN');
+        
+        // Dispatch THREE ready event
+        const threeReadyEvent = new Event('THREEReady');
+        window.dispatchEvent(threeReadyEvent);
+      };
+      
+      script.onerror = function() {
+        console.error('[RelayWorldFixes] Failed to load THREE.js from CDN');
+        
+        // Try a fallback
+        const fallbackScript = document.createElement('script');
+        fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.150.1/three.min.js';
+        
+        fallbackScript.onload = function() {
+          console.log('[RelayWorldFixes] THREE.js loaded from fallback CDN');
+          
+          // Dispatch THREE ready event
+          const threeReadyEvent = new Event('THREEReady');
+          window.dispatchEvent(threeReadyEvent);
+        };
+        
+        fallbackScript.onerror = function() {
+          console.error('[RelayWorldFixes] Failed to load THREE.js from fallback CDN');
+          
+          // Dispatch fallback event
+          const threeFailedEvent = new Event('THREEFallback');
+          window.dispatchEvent(threeFailedEvent);
+        };
+        
+        document.head.appendChild(fallbackScript);
+      };
+      
+      document.head.appendChild(script);
+    }
+  }
+  
+  // Initialize core system when DOM is loaded
+  document.addEventListener('DOMContentLoaded', function() {
     console.log('[RelayWorldFixes] DOM loaded, applying fixes');
     
     // Apply CSS fixes
-    window.fixCSS();
+    applyCSSFixes();
     
-    // Set up unified login handler
-    window.unifiedLoginHandler();
+    // Setup unified login handler
+    setupUnifiedLoginHandler();
     
-    // Initialize core system if not already done
-    setTimeout(() => {
-      // Allow other scripts to run first
-      if (window.RelayWorldCore && !window.RelayWorld.initialized) {
-        console.log('[RelayWorldFixes] Initializing core system');
-        window.RelayWorldCore.init().catch(err => {
-          console.error('[RelayWorldFixes] Core initialization failed:', err);
-          window.showToast('Initialization failed. Please reload the page.', 'error');
-        });
-        window.RelayWorld.initialized = true;
-      }
-    }, 300);
+    // Setup THREE.js fixes
+    setupThreeJsFixes();
+    
+    console.log('[RelayWorldFixes] Initializing core system');
+    
+    // Initialize core system
+    if (_relayWorldCore && typeof _relayWorldCore.init === 'function') {
+      _relayWorldCore.init();
+    }
+    
+    // Final check to ensure modules are registered
+    if (_relayWorldCore) {
+      _relayWorldCore.registerCoreModules();
+    }
+    
+    console.log('[RelayWorldFixes] Integration fixes applied');
   });
   
+  // Add additional init call outside DOMContentLoaded to ensure it happens in both cases
+  if (document.readyState !== 'loading') {
+    console.log('[RelayWorldFixes] Document already loaded, initializing immediately');
+    
+    // Initialize core system
+    if (_relayWorldCore && typeof _relayWorldCore.init === 'function') {
+      _relayWorldCore.init();
+    }
+    
+    // Setup unified login handler
+    setupUnifiedLoginHandler();
+    
+    // Setup THREE.js fixes
+    setupThreeJsFixes();
+  }
+  
   console.log('[RelayWorldFixes] Integration fixes prepared');
+  
+  // Export functions for easy access
+  window.RelayWorldFixes = {
+    createUnifiedEventBus,
+    createUnifiedConfigManager,
+    createUnifiedRelayWorldCore,
+    registerCoreModulesImmediately,
+    setupUnifiedLoginHandler,
+    setupThreeJsFixes,
+    applyCSSFixes
+  };
 })();

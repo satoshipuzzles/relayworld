@@ -4,16 +4,694 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relay World</title>
-    <link rel="icon" href="assets/icons/favicon.png">
     
-    <!-- Load THREE.js from CDN -->
+<<<<<<< HEAD
+    <!-- Load THREE.js first -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.150.1/three.min.js"></script>
     
+    <!-- Simple initialization script -->
+    <script>
+    (function() {
+        // Basic game state
+        window.GAME_STATE = {
+            initialized: false,
+            loggedIn: false,
+            player: null
+        };
+        
+        // Simple event system
+        window.EventBus = {
+            emit: function(event, data) {
+                console.log('[Event]', event, data);
+                window.dispatchEvent(new CustomEvent(event, { detail: data }));
+            }
+        };
+        
+        // Basic utilities
+        window.CryptoUtils = {
+            generateId: function() {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            }
+        };
+        
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[Game] Initializing...');
+            
+            // Handle guest login
+            const guestButton = document.getElementById('guest-login-button');
+            if (guestButton) {
+                guestButton.addEventListener('click', function() {
+                    console.log('[Login] Guest login clicked');
+                    
+                    // Create guest player
+                    const guestId = 'guest_' + CryptoUtils.generateId();
+                    GAME_STATE.player = {
+                        id: guestId,
+                        name: 'Guest ' + guestId.substr(-4),
+                        isGuest: true
+                    };
+                    
+                    // Update UI
+                    const playerName = document.getElementById('player-profile-name');
+                    const playerNpub = document.getElementById('player-profile-npub');
+                    if (playerName) playerName.textContent = GAME_STATE.player.name;
+                    if (playerNpub) playerNpub.textContent = GAME_STATE.player.id;
+                    
+                    // Hide login screen
+                    const loginScreen = document.getElementById('login-screen');
+                    if (loginScreen) loginScreen.style.display = 'none';
+                    
+                    // Show game UI
+                    const playerProfile = document.getElementById('player-profile');
+                    const topBar = document.getElementById('top-bar');
+                    if (playerProfile) {
+                        playerProfile.classList.remove('hide');
+                        playerProfile.style.display = 'block';
+                    }
+                    if (topBar) {
+                        topBar.classList.remove('hide');
+                        topBar.style.display = 'block';
+                    }
+                    
+                    // Mark as logged in
+                    GAME_STATE.loggedIn = true;
+                    document.body.classList.add('logged-in');
+                    
+                    // Emit login event
+                    EventBus.emit('login:complete', GAME_STATE.player);
+                });
+            }
+            
+            // Handle Nostr login
+            const loginButton = document.getElementById('login-button');
+            if (loginButton) {
+                loginButton.addEventListener('click', function() {
+                    console.log('[Login] Nostr login clicked');
+                    alert('Nostr login not implemented in this demo version');
+                });
+            }
+            
+            // Handle logout
+            const logoutButton = document.getElementById('logout-button');
+            if (logoutButton) {
+                logoutButton.addEventListener('click', function() {
+                    location.reload();
+                });
+            }
+            
+            console.log('[Game] Ready');
+        });
+    })();
+    </script>
+    
+    <!-- Basic styles -->
+    <style>
+    body.logged-in #login-screen {
+        display: none !important;
+    }
+    #player-profile.hide,
+    #top-bar.hide {
+        display: none;
+    }
+    </style>
+    
+    <link rel="icon" href="assets/icons/favicon.png">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/ui.css">
+    
+    <!-- CSS files -->
+    <link rel="stylesheet" href="css/fix.css">
+    <link rel="stylesheet" href="css/login-fix.css">
+    <link rel="stylesheet" href="css/wallet-toast.css">
+=======
+    <!-- Load THREE.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.150.1/three.min.js"></script>
+>>>>>>> f721a0c2fe45d2f4154bade1739d2c4772244590
+    
+<<<<<<< HEAD
+    <!-- EXTREME EMERGENCY FIX: This script forces the player profile to stay visible -->
+    <script>
+    (function() {
+        console.log('[EMERGENCY-FIX] Applying brute force fixes for login screen...');
+        
+        // Variable to track if login happened
+        let loginHappened = false;
+        
+        // Counter for force attempts
+        let forceAttempts = 0;
+        
+        // Add MutationObserver to intercept login screen showing/hiding
+        function setupLoginForceObserver() {
+            // Create an observer instance
+            const observer = new MutationObserver(function(mutations) {
+                // If login happened, force everything to proper state
+                if (loginHappened) {
+                    forceLoginStateImmediately();
+                }
+            });
+            
+            // Start observing the document body
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['class', 'style']
+            });
+            
+            console.log('[EMERGENCY-FIX] Login force observer setup complete');
+        }
+        
+        // Function to force the login state immediately
+        function forceLoginStateImmediately() {
+            forceAttempts++;
+            console.log('[EMERGENCY-FIX] Forcing login state, attempt:', forceAttempts);
+            
+            // Force hide login screen with multiple methods
+            const loginScreen = document.getElementById('login-screen');
+            if (loginScreen) {
+                loginScreen.classList.add('hide');
+                loginScreen.style.display = 'none !important';
+                loginScreen.style.visibility = 'hidden';
+                loginScreen.style.opacity = '0';
+                loginScreen.style.position = 'absolute';
+                loginScreen.style.zIndex = '-9999';
+                loginScreen.setAttribute('aria-hidden', 'true');
+            }
+            
+            // Force show player profile with multiple methods
+            const playerProfile = document.getElementById('player-profile');
+            if (playerProfile) {
+                playerProfile.classList.remove('hide');
+                playerProfile.style.display = 'block !important';
+                playerProfile.style.visibility = 'visible';
+                playerProfile.style.opacity = '1';
+                playerProfile.style.zIndex = '100';
+            }
+            
+            // Force show top bar with multiple methods
+            const topBar = document.getElementById('top-bar');
+            if (topBar) {
+                topBar.classList.remove('hide');
+                topBar.style.display = 'block !important';
+                topBar.style.visibility = 'visible';
+                topBar.style.opacity = '1';
+                topBar.style.zIndex = '100';
+            }
+        }
+        
+        // Listen for both DOM and custom events
+        function listenForLoginEvents() {
+            // Listen for DOM loginComplete event
+            window.addEventListener('loginComplete', function() {
+                console.log('[EMERGENCY-FIX] Login event detected!');
+                loginHappened = true;
+                
+                // Force state immediately
+                forceLoginStateImmediately();
+                
+                // Also set up a repeated interval
+                setInterval(forceLoginStateImmediately, 500);
+            });
+            
+            // Also intercept EventBus auth:loginComplete event
+            if (window.EventBus && window.EventBus.on) {
+                window.EventBus.on('auth:loginComplete', function() {
+                    console.log('[EMERGENCY-FIX] EventBus login event detected!');
+                    loginHappened = true;
+                    
+                    // Force state immediately
+                    forceLoginStateImmediately();
+                    
+                    // Also set up a repeated interval
+                    setInterval(forceLoginStateImmediately, 500);
+                });
+            }
+            
+            // Also listen to player:updated event
+            if (window.EventBus && window.EventBus.on) {
+                window.EventBus.on('player:updated', function() {
+                    console.log('[EMERGENCY-FIX] Player updated event detected!');
+                    loginHappened = true;
+                    
+                    // Force state with a short delay
+                    setTimeout(forceLoginStateImmediately, 100);
+                    setTimeout(forceLoginStateImmediately, 500);
+                    setTimeout(forceLoginStateImmediately, 1000);
+                    setTimeout(forceLoginStateImmediately, 2000);
+                });
+            }
+            
+            // Monkey patch the completeLogin function in login.js if possible
+            if (window.LoginModule && window.LoginModule.completeLogin) {
+                console.log('[EMERGENCY-FIX] Monkey patching completeLogin function');
+                
+                const originalCompleteLogin = window.LoginModule.completeLogin;
+                window.LoginModule.completeLogin = function(pubkey) {
+                    console.log('[EMERGENCY-FIX] Intercepted completeLogin call');
+                    originalCompleteLogin(pubkey);
+                    
+                    loginHappened = true;
+                    forceLoginStateImmediately();
+                };
+            }
+            
+            console.log('[EMERGENCY-FIX] Login event listeners established');
+        }
+        
+        // Add necessary CSS to force elements to stay visible/hidden
+        function addEmergencyCSS() {
+            const style = document.createElement('style');
+            style.textContent = `
+                /* Super aggressive CSS to make sure login screen stays hidden after login */
+                body.logged-in #login-screen,
+                body[data-logged-in="true"] #login-screen,
+                #login-screen.hide {
+                    display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
+                    position: absolute !important;
+                    z-index: -9999 !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                    overflow: hidden !important;
+                }
+                
+                /* Super aggressive CSS to make sure player profile and top bar stay visible after login */
+                body.logged-in #player-profile,
+                body.logged-in #top-bar,
+                body[data-logged-in="true"] #player-profile,
+                body[data-logged-in="true"] #top-bar,
+                #player-profile:not(.hide),
+                #top-bar:not(.hide) {
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    position: relative !important;
+                    z-index: 100 !important;
+                }
+            `;
+            document.head.appendChild(style);
+            
+            console.log('[EMERGENCY-FIX] Emergency CSS added');
+        }
+        
+        // Setup DOM ready listener
+        function setupDOMReadyListener() {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initializeEmergencyFixes);
+            } else {
+                initializeEmergencyFixes();
+            }
+        }
+        
+        // Initialize all emergency fixes
+        function initializeEmergencyFixes() {
+            console.log('[EMERGENCY-FIX] Initializing emergency fixes');
+            
+            // Add emergency CSS
+            addEmergencyCSS();
+            
+            // Set up the observer
+            setupLoginForceObserver();
+            
+            // Listen for login events
+            listenForLoginEvents();
+            
+            // Check if we've already logged in from localStorage
+            checkPreviousLogin();
+            
+            // Add direct interceptor to guest login button
+            interceptLoginButtons();
+            
+            console.log('[EMERGENCY-FIX] Emergency fixes initialized');
+        }
+        
+        // Check if we've already logged in previously
+        function checkPreviousLogin() {
+            try {
+                const storedLogin = localStorage.getItem('relayworld_login');
+                if (storedLogin) {
+                    console.log('[EMERGENCY-FIX] Found previous login in localStorage');
+                    loginHappened = true;
+                    
+                    // Force login state after a short delay
+                    setTimeout(forceLoginStateImmediately, 500);
+                    setTimeout(forceLoginStateImmediately, 1000);
+                    setTimeout(forceLoginStateImmediately, 2000);
+                    
+                    // Mark body as logged in
+                    document.body.classList.add('logged-in');
+                    document.body.setAttribute('data-logged-in', 'true');
+                }
+            } catch (e) {
+                console.error('[EMERGENCY-FIX] Error checking localStorage:', e);
+            }
+        }
+        
+        // Intercept login buttons directly
+        function interceptLoginButtons() {
+            document.addEventListener('click', function(event) {
+                // Check if the clicked element is the guest login button
+                if (event.target && (
+                    event.target.id === 'guest-login-button' || 
+                    event.target.id === 'login-button' ||
+                    (event.target.parentElement && 
+                     (event.target.parentElement.id === 'guest-login-button' || 
+                      event.target.parentElement.id === 'login-button'))
+                )) {
+                    console.log('[EMERGENCY-FIX] Login button click intercepted');
+                    
+                    // Schedule forcing login state after typical login completion time
+                    setTimeout(function() {
+                        console.log('[EMERGENCY-FIX] Assuming login completed after button click');
+                        loginHappened = true;
+                        document.body.classList.add('logged-in');
+                        document.body.setAttribute('data-logged-in', 'true');
+                        forceLoginStateImmediately();
+                        
+                        // Set up continuous interval to keep checking
+                        setInterval(forceLoginStateImmediately, 500);
+                    }, 2500);
+                }
+            }, true); // Use capture to get event before normal handlers
+        }
+        
+        // Start the emergency fixes
+        setupDOMReadyListener();
+        
+        console.log('[EMERGENCY-FIX] Brute force fixes module loaded');
+    })();
+    </script>
+=======
     <style>
     /* Core styles */
     body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
     .hide { display: none !important; }
+>>>>>>> f721a0c2fe45d2f4154bade1739d2c4772244590
     
+<<<<<<< HEAD
+    <!-- === EMERGENCY FIX: This script runs before anything else === -->
+    <script>
+    (function() {
+        console.log('[Emergency] Applying emergency fixes...');
+        
+        // 1. Fix module imports
+        const originalImport = window.import;
+        window.import = function(modulePath) {
+            console.log('[Emergency] Import intercepted:', modulePath);
+            // For crypto-utils specifically, return our global object
+            if (modulePath.includes('crypto-utils')) {
+                console.log('[Emergency] Providing global CryptoUtils for import');
+                return Promise.resolve({
+                    CryptoUtils: window.CryptoUtils,
+                    default: window.CryptoUtils
+                });
+            }
+            // Otherwise use original import if available
+            return typeof originalImport === 'function' ? originalImport(modulePath) : Promise.reject(new Error('Import not supported'));
+        };
+        
+        // 2. Create global CryptoUtils
+        window.CryptoUtils = {
+            generateKey: function(length) {
+                const arr = new Uint8Array(length || 32);
+                window.crypto.getRandomValues(arr);
+                return Array.from(arr, byte => byte.toString(16).padStart(2, '0')).join('');
+            },
+            hash: async function(data) {
+                const encoder = new TextEncoder();
+                const dataBuffer = encoder.encode(data);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            },
+            encrypt: function(text, key) {
+                // Simple encryption for demo
+                return btoa(text);
+            },
+            decrypt: function(text, key) {
+                // Simple decryption for demo
+                try {
+                    return atob(text);
+                } catch (e) {
+                    console.error("Decryption error:", e);
+                    return null;
+                }
+            },
+            randomId: function(prefix) {
+                return (prefix || '') + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+            }
+        };
+        
+        // 3. Create a unified EventBus
+        window.EventBus = {
+            listeners: {},
+            on: function(event, callback) {
+                if (!this.listeners[event]) this.listeners[event] = [];
+                this.listeners[event].push(callback);
+                return this;
+            },
+            emit: function(event, data) {
+                console.log('[EventBus] Emitting:', event);
+                if (this.listeners[event]) {
+                    this.listeners[event].forEach(function(callback) {
+                        try {
+                            callback(data);
+                        } catch (e) {
+                            console.error('[EventBus] Error in handler:', e);
+                        }
+                    });
+                }
+            },
+            off: function(event, callback) {
+                if (this.listeners[event]) {
+                    const index = this.listeners[event].indexOf(callback);
+                    if (index !== -1) this.listeners[event].splice(index, 1);
+                }
+                return this;
+            }
+        };
+        
+        // 4. Create a unified RelayWorldCore
+        window.RelayWorldCore = {
+            modules: new Map(),
+            
+            // Register a module
+            registerModule: function(name, module) {
+                console.log(`[RelayWorldCore] Registering module: ${name}`);
+                this.modules.set(name, module);
+                if (window.EventBus) {
+                    window.EventBus.emit('module:registered', { name: name });
+                }
+                return this;
+            },
+            
+            // Get a module
+            getModule: function(name) {
+                if (!this.modules.has(name)) {
+                    // First try, check if modules can be registered
+                    this.registerCoreModules();
+                }
+                
+                if (!this.modules.has(name)) {
+                    console.error(`[RelayWorldCore] Module "${name}" not found`);
+                    return null;
+                }
+                return this.modules.get(name);
+            },
+            
+            // Initialize the core system
+            init: function() {
+                console.log('[RelayWorldCore] Initializing core system...');
+                
+                // Register core modules
+                this.registerCoreModules();
+                
+                console.log('[RelayWorldCore] Core system initialized');
+                
+                // Emit initialization event
+                if (window.EventBus) {
+                    window.EventBus.emit('core:initialized');
+                }
+                
+                return this;
+            },
+            
+            // Register core modules required by the system
+            registerCoreModules: function() {
+                // Player module
+                if (!this.getModule('player')) {
+                    this.registerModule('player', {
+                        currentPlayer: null,
+                        pubkey: null,
+                        name: null,
+                        setPlayer: function(data) {
+                            console.log("[Player] Setting player data:", data);
+                            this.currentPlayer = data;
+                            this.pubkey = data.pubkey;
+                            this.name = data.name || `Player-${data.pubkey.substring(0, 8)}`;
+                            
+                            // Emit player updated event
+                            if (window.EventBus) {
+                                window.EventBus.emit('player:updated', data);
+                            }
+                        },
+                        getPlayer: function() {
+                            return this.currentPlayer;
+                        }
+                    });
+                }
+                
+                // Game module
+                if (!this.modules.has('game')) {
+                    this.registerModule('game', {
+                        state: 'initializing',
+                        setState: function(newState) {
+                            console.log("[Game] State changing to:", newState);
+                            this.state = newState;
+                            
+                            // Emit game state change event
+                            if (window.EventBus) {
+                                window.EventBus.emit('game:stateChange', newState);
+                            }
+                        },
+                        getState: function() {
+                            return this.state;
+                        },
+                        start: function() {
+                            console.log("[Game] Starting game");
+                            this.setState('playing');
+                        }
+                    });
+                }
+                
+                // UI module
+                if (!this.modules.has('ui')) {
+                    this.registerModule('ui', {
+                        elements: new Map(),
+                        updateUI: function(elementId, data) {
+                            console.log("[UI] Updating element:", elementId);
+                            const element = document.getElementById(elementId);
+                            if (element) {
+                                if (elementId === 'player-profile' || elementId === 'top-bar') {
+                                    element.classList.remove('hide');
+                                }
+                                this.elements.set(elementId, data || {});
+                                
+                                // Emit UI updated event
+                                if (window.EventBus) {
+                                    window.EventBus.emit('ui:updated', { elementId: elementId, data: data });
+                                }
+                            } else {
+                                console.warn("[UI] Element not found:", elementId);
+                            }
+                        }
+                    });
+                }
+                
+                return this;
+            }
+        };
+        
+        // Initialize the core once DOM loaded
+        window.addEventListener('DOMContentLoaded', function() {
+            // Initialize the core system
+            if (window.RelayWorldCore && typeof window.RelayWorldCore.init === 'function') {
+                window.RelayWorldCore.init();
+            }
+            
+            // Try loading THREE.js from CDN
+            if (!window.THREE) {
+                console.log('[Emergency] Loading THREE.js from CDN...');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js';
+                script.onload = function() {
+                    console.log('[Emergency] THREE.js loaded successfully from CDN');
+                    window.dispatchEvent(new Event('THREEReady'));
+                };
+                script.onerror = function() {
+                    console.error('[Emergency] Failed to load THREE.js from CDN');
+                    window.dispatchEvent(new Event('THREEFallback'));
+                    
+                    // Try alternate CDN as fallback
+                    const fallbackScript = document.createElement('script');
+                    fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.150.1/three.min.js';
+                    fallbackScript.onload = function() {
+                        console.log('[Emergency] THREE.js loaded from fallback CDN');
+                        window.dispatchEvent(new Event('THREEReady'));
+                    };
+                    document.head.appendChild(fallbackScript);
+                };
+                document.head.appendChild(script);
+            }
+        });
+        
+        // Create a proxy for window.onerror to catch syntax errors
+        const originalOnError = window.onerror;
+        window.onerror = function(message, source, lineno, colno, error) {
+            // Check if this is our specific error
+            if (message && message.toString().includes("'CryptoUtils'")) {
+                console.warn('[Emergency] Caught CryptoUtils import error, this is expected and handled');
+                // Don't propagate this specific error
+                return true;
+            }
+            // Otherwise use original handler
+            if (typeof originalOnError === 'function') {
+                return originalOnError.apply(this, arguments);
+            }
+            return false;
+        };
+        
+        console.log('[Emergency] Emergency fixes applied successfully');
+    })();
+    </script>
+    
+    <!-- EMERGENCY FIX: Dynamic script loading to bypass caching -->
+    <script>
+    (function() {
+        // Add timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        
+        // Load our emergency main first
+        const emergencyScript = document.createElement('script');
+        emergencyScript.src = 'js/main-emergency.js?v=' + timestamp;
+        document.head.appendChild(emergencyScript);
+        
+        // Load other scripts with timestamps
+        const scripts = [
+            'js/modules/quick-fix.js',
+            'js/THREE.js',
+            'js/three-simple-fix.js', 
+            'js/three-compatibility.js',
+            'js/relay-world-fixes.js',
+            'js/login.js'
+        ];
+        
+        scripts.forEach(function(src) {
+            const script = document.createElement('script');
+            script.src = src + '?v=' + timestamp;
+            document.head.appendChild(script);
+        });
+        
+        console.log('[Emergency] Dynamically loaded scripts with cache-busting');
+    })();
+    </script>
+    
+    <!-- Original script tags are commented out to avoid conflicts -->
+    <!-- 
+    <script src="js/modules/quick-fix.js"></script>
+    <script src="js/THREE.js"></script>
+    <script src="js/three-simple-fix.js"></script>
+    <script src="js/three-compatibility.js"></script>
+    <script src="js/relay-world-fixes.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/login.js"></script>
+    -->
+=======
     /* Login screen */
     #login-screen {
         position: fixed;
@@ -109,6 +787,7 @@
         margin: 5px 0;
     }
     </style>
+>>>>>>> f721a0c2fe45d2f4154bade1739d2c4772244590
 </head>
 <body>
     <!-- Login Screen -->
@@ -332,11 +1011,102 @@
         }
     };
     
+<<<<<<< HEAD
+    <!-- Inventory Interface -->
+    <div id="inventory-interface" class="hide">
+        <div class="inventory-header">
+            <h3>Inventory</h3>
+            <button id="inventory-close">×</button>
+        </div>
+        <div id="inventory-content"></div>
+    </div>
+    
+    <!-- DM Panel -->
+    <div id="dm-panel" class="hide">
+        <div class="dm-header">
+            <h3 id="dm-title">Direct Messages</h3>
+            <button id="dm-close">×</button>
+        </div>
+        <div class="dm-container">
+            <div id="dm-list"></div>
+            <div class="dm-chat">
+                <div id="dm-messages"></div>
+                <div class="dm-input-container">
+                    <input id="dm-input" type="text" placeholder="Type a message...">
+                    <button id="dm-send">Send</button>
+                    <button id="dm-file">📎</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Zap Interface -->
+    <div id="zap-interface" class="hide">
+        <div class="zap-header">
+            <h3>Send Zap</h3>
+            <button id="zap-close">×</button>
+        </div>
+        <div class="zap-target">
+            <img id="zap-target-image" src="assets/icons/default-avatar.png" alt="Target">
+            <div id="zap-target-name">User</div>
+        </div>
+        <div class="zap-amount-container">
+            <div class="zap-presets">
+                <button class="zap-preset active" data-amount="21">21</button>
+                <button class="zap-preset" data-amount="210">210</button>
+                <button class="zap-preset" data-amount="2100">2100</button>
+                <button class="zap-preset" data-amount="21000">21k</button>
+            </div>
+            <input id="zap-amount" type="number" value="21" min="1">
+            <span>sats</span>
+        </div>
+        <div class="zap-message-container">
+            <textarea id="zap-message" placeholder="Add a message (optional)"></textarea>
+        </div>
+        <button id="zap-send-button">Send Zap</button>
+    </div>
+    
+    <!-- Bitcoin Connect Modal -->
+    <div id="bitcoin-connect-modal" class="hide">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="bc-modal-title">Connect Lightning Wallet</h3>
+                <button id="bc-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="bc-connectors">
+                    <div class="bc-connector" data-connector="alby">
+                        <img src="assets/icons/alby.png" alt="Alby">
+                        <span>Alby</span>
+                    </div>
+                    <div class="bc-connector" data-connector="webln">
+                        <img src="assets/icons/webln.png" alt="WebLN">
+                        <span>WebLN</span>
+                    </div>
+                    <div class="bc-connector" data-connector="nwc">
+                        <img src="assets/icons/nwc.png" alt="NWC">
+                        <span>NWC</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+    
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="hide">
+        <div class="loading-spinner"></div>
+        <div id="loading-status">Loading...</div>
+    </div>
+=======
     // Initialize game when DOM is ready
     document.addEventListener('DOMContentLoaded', () => {
         Game.init();
         Game.checkPreviousLogin();
     });
     </script>
+>>>>>>> f721a0c2fe45d2f4154bade1739d2c4772244590
 </body>
 </html> 

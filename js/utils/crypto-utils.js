@@ -4,8 +4,52 @@
  * Compatible version with no modern syntax features
  */
 
-// Create CryptoUtils object
-var CryptoUtils = {
+/**
+ * CryptoUtils - Utility functions for cryptographic operations
+ */
+
+// Create the CryptoUtils object that will be exported
+export const CryptoUtils = {
+    // Generate a random key
+    generateKey: function(length = 32) {
+        const array = new Uint8Array(length);
+        crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    },
+    
+    // Hash a string using SHA-256
+    async hash: function(data) {
+        const encoder = new TextEncoder();
+        const dataBuffer = encoder.encode(data);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    },
+    
+    // Simple encrypt/decrypt functions (for demo purposes)
+    encrypt: function(text, key) {
+        // Simple XOR encryption for demo
+        let result = '';
+        for (let i = 0; i < text.length; i++) {
+            result += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+        }
+        return btoa(result); // Base64 encode
+    },
+    
+    decrypt: function(encoded, key) {
+        try {
+            const text = atob(encoded); // Base64 decode
+            let result = '';
+            for (let i = 0; i < text.length; i++) {
+                result += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+            }
+            return result;
+        } catch (e) {
+            console.error("Decryption error:", e);
+            return null;
+        }
+    },
+    
     // Generate a random private key
     generatePrivateKey: function() {
         var privateKey = new Uint8Array(32);
@@ -34,27 +78,6 @@ var CryptoUtils = {
             result += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
         }
         return result;
-    },
-    
-    // Hash a string using SHA-256
-    sha256: async function(message) {
-        try {
-            var encoder = new TextEncoder();
-            var data = encoder.encode(message);
-            var hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
-            var hashArray = Array.from(new Uint8Array(hashBuffer));
-            var hashHex = hashArray.map(function(b) {
-                return b.toString(16).padStart(2, '0');
-            }).join('');
-            return hashHex;
-        } catch (error) {
-            console.error("SHA-256 error:", error);
-            // Fallback to CryptoJS if available
-            if (typeof CryptoJS !== 'undefined' && CryptoJS.SHA256) {
-                return CryptoJS.SHA256(message).toString();
-            }
-            throw error;
-        }
     },
     
     // Convert hex string to Uint8Array
@@ -312,5 +335,8 @@ var CryptoUtils = {
     }
 };
 
-// Make CryptoUtils available globally
+// Also add it to the window object for non-module scripts
 window.CryptoUtils = CryptoUtils;
+
+// Default export for compatibility with both import syntaxes
+export default CryptoUtils;

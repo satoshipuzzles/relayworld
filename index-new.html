@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay World</title>
+    <link rel="icon" href="assets/icons/favicon.png">
+    
+    <!-- Load THREE.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.150.1/three.min.js"></script>
+    
+    <style>
+    /* Core styles */
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; background: #121212; }
+    .hide { display: none !important; }
+    
+    /* Enhanced Login screen */
+    #login-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    
+    #login-panel {
+        text-align: center;
+        padding: 2rem;
+        background: #2a2a2a;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        min-width: 320px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .login-options {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    
+    /* Game UI */
+    #game-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+    
+    #top-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 50px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        z-index: 100;
+    }
+    
+    #player-profile {
+        position: fixed;
+        top: 60px;
+        left: 10px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        z-index: 100;
+        min-width: 200px;
+    }
+    
+    /* Buttons */
+    button {
+        background: #4a4a4a;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+    
+    button:hover {
+        background: #5a5a5a;
+    }
+    
+    .primary-button {
+        background: #4CAF50;
+    }
+    
+    .primary-button:hover {
+        background: #45a049;
+    }
+    
+    /* Stats */
+    .stats {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .stats div {
+        margin: 5px 0;
+    }
+    
+    /* Enhanced Game UI */
+    #game-ui {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 100;
+    }
+    
+    #game-ui > * {
+        pointer-events: auto;
+    }
+    
+    /* Controls */
+    #controls {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        background: rgba(0,0,0,0.7);
+        padding: 10px;
+        border-radius: 8px;
+    }
+    
+    .control-btn {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.1);
+        border: 2px solid rgba(255,255,255,0.2);
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .control-btn:hover {
+        background: rgba(255,255,255,0.2);
+    }
+    
+    /* World objects */
+    .world-object {
+        position: absolute;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .world-object:hover {
+        background: rgba(255,255,255,0.2);
+        transform: scale(1.1);
+    }
+    </style>
+</head>
+<body>
+    <!-- Enhanced Login Screen -->
+    <div id="login-screen">
+        <div id="login-panel">
+            <h1>Relay World</h1>
+            <p>A decentralized open world game powered by Nostr</p>
+            <div class="login-options">
+                <button id="login-button" class="primary-button">LOGIN WITH NOSTR</button>
+                <div style="position: relative">
+                    <button id="guest-login-button">PLAY AS GUEST</button>
+                    <input type="text" id="guest-name" placeholder="Guest name (optional)" 
+                           style="margin-top: 5px; width: 100%; padding: 8px; box-sizing: border-box; 
+                                  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); 
+                                  color: white; border-radius: 4px;">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Canvas -->
+    <canvas id="game-canvas"></canvas>
+    
+    <!-- Enhanced Game UI -->
+    <div id="game-ui">
+        <div id="top-bar" class="hide">
+            <div id="logo">Relay World</div>
+            <div id="score">Score: <span id="score-value">0</span></div>
+            <button id="logout-button">Logout</button>
+        </div>
+        
+        <div id="player-profile" class="hide">
+            <img id="player-avatar" src="assets/icons/default-avatar.png" width="64" height="64">
+            <h3 id="player-name">Player</h3>
+            <div id="player-id"></div>
+            <div class="stats">
+                <div>Level: <span id="player-level">1</span></div>
+                <div>Score: <span id="player-score">0</span></div>
+                <div>Position: <span id="player-position">0, 0, 0</span></div>
+            </div>
+        </div>
+        
+        <div id="controls" class="hide">
+            <button class="control-btn" id="move-left">←</button>
+            <button class="control-btn" id="move-forward">↑</button>
+            <button class="control-btn" id="move-backward">↓</button>
+            <button class="control-btn" id="move-right">→</button>
+        </div>
+    </div>
+    
+    <script>
+    // Enhanced Game core
+    const Game = {
+        state: {
+            initialized: false,
+            loggedIn: false,
+            player: null,
+            score: 0,
+            position: { x: 0, y: 0, z: 0 },
+            nostr: {
+                pubkey: null,
+                relays: [],
+                connected: false
+            }
+        },
+        
+        // Initialize game
+        init() {
+            console.log('[Game] Initializing...');
+            
+            // Set up THREE.js scene
+            this.setupScene();
+            
+            // Set up event listeners
+            this.setupEventListeners();
+            
+            // Initialize Nostr
+            this.initNostr();
+            
+            // Mark as initialized
+            this.state.initialized = true;
+            console.log('[Game] Initialized');
+        },
+        
+        // Initialize Nostr
+        async initNostr() {
+            try {
+                // Check if nostr is available in window
+                if (typeof window.nostr !== 'undefined') {
+                    console.log('[Game] Nostr detected');
+                    this.state.nostr.available = true;
+                    
+                    // Enable Nostr login button
+                    document.getElementById('login-button').disabled = false;
+                } else {
+                    console.log('[Game] Nostr not detected');
+                    document.getElementById('login-button').disabled = true;
+                }
+            } catch (error) {
+                console.error('[Game] Failed to initialize Nostr:', error);
+            }
+        },
+        
+        // Set up THREE.js scene with enhanced world
+        setupScene() {
+            try {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: document.getElementById('game-canvas'),
+                    antialias: true 
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                // Add ground plane
+                const groundGeometry = new THREE.PlaneGeometry(100, 100);
+                const groundMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0x1a1a1a,
+                    side: THREE.DoubleSide
+                });
+                this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                this.ground.rotation.x = Math.PI / 2;
+                this.scene.add(this.ground);
+                
+                // Add player cube
+                const geometry = new THREE.BoxGeometry();
+                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                this.player = new THREE.Mesh(geometry, material);
+                this.scene.add(this.player);
+                
+                // Position camera and player
+                this.camera.position.set(0, 5, 10);
+                this.camera.lookAt(0, 0, 0);
+                this.player.position.set(0, 0.5, 0);
+                
+                // Add some world objects
+                this.addWorldObjects();
+                
+                // Start animation loop
+                this.animate();
+                
+                console.log('[Game] 3D scene setup complete');
+            } catch (error) {
+                console.error('[Game] Failed to setup 3D scene:', error);
+                this.setup2DFallback();
+            }
+        },
+        
+        // Add world objects
+        addWorldObjects() {
+            // Add some cubes around the world
+            for (let i = 0; i < 10; i++) {
+                const geometry = new THREE.BoxGeometry(1, 1, 1);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: Math.random() * 0xffffff 
+                });
+                const cube = new THREE.Mesh(geometry, material);
+                
+                cube.position.x = (Math.random() - 0.5) * 20;
+                cube.position.z = (Math.random() - 0.5) * 20;
+                cube.position.y = 0.5;
+                
+                this.scene.add(cube);
+            }
+        },
+        
+        // Enhanced animation loop
+        animate() {
+            if (!this.scene || !this.camera || !this.renderer) return;
+            
+            requestAnimationFrame(() => this.animate());
+            
+            // Update player position display
+            if (this.player) {
+                const pos = this.player.position;
+                document.getElementById('player-position').textContent = 
+                    `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+            }
+            
+            this.renderer.render(this.scene, this.camera);
+        },
+        
+        // Set up event listeners
+        setupEventListeners() {
+            // Login buttons
+            document.getElementById('guest-login-button').addEventListener('click', () => this.handleGuestLogin());
+            document.getElementById('login-button').addEventListener('click', () => this.handleNostrLogin());
+            document.getElementById('logout-button').addEventListener('click', () => this.handleLogout());
+            
+            // Movement controls
+            document.getElementById('move-left').addEventListener('click', () => this.movePlayer(-1, 0));
+            document.getElementById('move-right').addEventListener('click', () => this.movePlayer(1, 0));
+            document.getElementById('move-forward').addEventListener('click', () => this.movePlayer(0, -1));
+            document.getElementById('move-backward').addEventListener('click', () => this.movePlayer(0, 1));
+            
+            // Keyboard controls
+            window.addEventListener('keydown', (e) => {
+                switch(e.key) {
+                    case 'ArrowLeft':
+                    case 'a':
+                        this.movePlayer(-1, 0);
+                        break;
+                    case 'ArrowRight':
+                    case 'd':
+                        this.movePlayer(1, 0);
+                        break;
+                    case 'ArrowUp':
+                    case 'w':
+                        this.movePlayer(0, -1);
+                        break;
+                    case 'ArrowDown':
+                    case 's':
+                        this.movePlayer(0, 1);
+                        break;
+                }
+            });
+            
+            // Window resize
+            window.addEventListener('resize', () => this.handleResize());
+        },
+        
+        // Move player
+        movePlayer(x, z) {
+            if (!this.player || !this.state.loggedIn) return;
+            
+            const MOVE_SPEED = 0.5;
+            this.player.position.x += x * MOVE_SPEED;
+            this.player.position.z += z * MOVE_SPEED;
+            
+            // Update camera to follow player
+            this.camera.position.x = this.player.position.x;
+            this.camera.position.z = this.player.position.z + 10;
+            this.camera.lookAt(this.player.position);
+            
+            // Update score based on movement
+            this.updateScore(1);
+        },
+        
+        // Handle guest login with enhanced features
+        handleGuestLogin() {
+            console.log('[Game] Guest login');
+            
+            // Get custom name if provided
+            const nameInput = document.getElementById('guest-name');
+            const customName = nameInput.value.trim();
+            
+            // Create guest player
+            this.state.player = {
+                id: 'guest_' + Date.now().toString(36),
+                name: customName || 'Guest ' + Math.random().toString(36).substring(2, 6),
+                isGuest: true,
+                level: 1,
+                score: 0
+            };
+            
+            // Update UI
+            this.updateUI();
+            
+            // Hide login screen
+            document.getElementById('login-screen').classList.add('hide');
+            
+            // Show game UI
+            document.getElementById('top-bar').classList.remove('hide');
+            document.getElementById('player-profile').classList.remove('hide');
+            document.getElementById('controls').classList.remove('hide');
+            
+            // Mark as logged in
+            this.state.loggedIn = true;
+            
+            // Store login state
+            try {
+                localStorage.setItem('relayworld_login', JSON.stringify(this.state.player));
+            } catch (e) {
+                console.warn('[Game] Failed to store login state:', e);
+            }
+        },
+        
+        // Enhanced Nostr login
+        async handleNostrLogin() {
+            if (!window.nostr) {
+                alert('Please install a Nostr extension (like nos2x or Alby) to login with Nostr');
+                return;
+            }
+            
+            try {
+                // Request public key
+                const pubkey = await window.nostr.getPublicKey();
+                
+                // Create Nostr player
+                this.state.player = {
+                    id: pubkey,
+                    name: 'Nostr_' + pubkey.substring(0, 6),
+                    isGuest: false,
+                    level: 1,
+                    score: 0,
+                    nostr: {
+                        pubkey: pubkey
+                    }
+                };
+                
+                // Update UI and complete login
+                this.handleGuestLogin(); // Reuse guest login flow
+                
+            } catch (error) {
+                console.error('[Game] Nostr login failed:', error);
+                alert('Failed to login with Nostr. Please try again or use guest login.');
+            }
+        },
+        
+        // Handle logout
+        handleLogout() {
+            try {
+                localStorage.removeItem('relayworld_login');
+            } catch (e) {
+                console.warn('[Game] Failed to clear login state:', e);
+            }
+            location.reload();
+        },
+        
+        // Handle window resize
+        handleResize() {
+            if (this.camera && this.renderer) {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        },
+        
+        // Update UI elements
+        updateUI() {
+            if (!this.state.player) return;
+            
+            document.getElementById('player-name').textContent = this.state.player.name;
+            document.getElementById('player-id').textContent = this.state.player.id;
+            document.getElementById('player-level').textContent = this.state.player.level;
+            document.getElementById('player-score').textContent = this.state.player.score;
+            document.getElementById('score-value').textContent = this.state.player.score;
+        },
+        
+        // Update score
+        updateScore(points) {
+            if (!this.state.player) return;
+            
+            this.state.player.score += points;
+            this.updateUI();
+        },
+        
+        // Check for previous login
+        checkPreviousLogin() {
+            try {
+                const stored = localStorage.getItem('relayworld_login');
+                if (stored) {
+                    this.state.player = JSON.parse(stored);
+                    this.handleGuestLogin();
+                }
+            } catch (e) {
+                console.warn('[Game] Failed to restore login state:', e);
+            }
+        }
+    };
+    
+    // Initialize game when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        Game.init();
+        Game.checkPreviousLogin();
+    });
+    </script>
+</body>
+</html> 

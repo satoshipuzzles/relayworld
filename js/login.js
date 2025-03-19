@@ -7,20 +7,85 @@
   
   // Variables to track login state and prevent duplicate attempts
   let loginInProgress = false;
+  let loginCompleted = false; // NEW: Track if login was ever completed
   
   // Execute on DOM content loaded
   document.addEventListener('DOMContentLoaded', function() {
     // Fix login styling
     fixLoginStyling();
     
+    // Register core modules if they don't exist
+    ensureCoreModulesExist();
+    
     // Setup login button handlers
     initLoginHandlers();
     
     // Create toast container if it doesn't exist
     ensureToastContainer();
+
+    // NEW: Check if we already logged in previously (from localStorage)
+    checkForPreviousLogin();
+    
+    // NEW: Add MutationObserver to ensure login screen stays hidden once logged in
+    preventLoginScreenReappearing();
     
     console.log('[Login] Login module initialized');
   });
+  
+  // NEW: Check for previous login
+  function checkForPreviousLogin() {
+    try {
+      const storedLogin = localStorage.getItem('relayworld_login');
+      if (storedLogin) {
+        const loginData = JSON.parse(storedLogin);
+        console.log('[Login] Found previous login data:', loginData);
+        
+        // Complete login with stored data
+        setTimeout(() => {
+          completeLogin(loginData.pubkey);
+        }, 500);
+      }
+    } catch (e) {
+      console.error('[Login] Error checking previous login:', e);
+    }
+  }
+  
+  // NEW: Prevent login screen from reappearing
+  function preventLoginScreenReappearing() {
+    // Add a mutation observer to ensure login screen stays hidden
+    const observer = new MutationObserver(function(mutations) {
+      if (loginCompleted) {
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen && !loginScreen.classList.contains('hide')) {
+          console.warn('[Login] Login screen trying to reappear! Forcing it to stay hidden.');
+          loginScreen.classList.add('hide');
+          // Also force display none for good measure
+          loginScreen.style.display = 'none !important';
+        }
+      }
+    });
+    
+    // Start observing the document body for DOM changes
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style']
+    });
+    
+    // Also set an interval for extra safety
+    setInterval(function() {
+      if (loginCompleted) {
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen && (!loginScreen.classList.contains('hide') || 
+            loginScreen.style.display !== 'none')) {
+          console.warn('[Login] Login screen detected via interval check! Re-hiding it.');
+          loginScreen.classList.add('hide');
+          loginScreen.style.display = 'none';
+        }
+      }
+    }, 500);
+  }
   
   // Fix login styling
   function fixLoginStyling() {
@@ -75,6 +140,14 @@
           0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
           100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
         }
+        
+        /* NEW: Force hide login screen with CSS */
+        #login-screen.hide {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+        }
       `;
       document.head.appendChild(styleEl);
     }
@@ -91,8 +164,116 @@
     });
   }
   
+  // Register core modules if they don't exist yet (CRUCIAL FIX)
+  function ensureCoreModulesExist() {
+    // Create RelayWorldCore if it doesn't exist
+    if (!window.RelayWorldCore) {
+      console.log('[Login] Creating RelayWorldCore');
+      window.RelayWorldCore = {
+        modules: new Map(),
+        registerModule: function(name, module) {
+          console.log(`[Login] Registering module: ${name}`);
+          this.modules.set(name, module);
+          if (window.EventBus) {
+            window.EventBus.emit('module:registered', { name });
+          }
+          return this;
+        },
+        getModule: function(name) {
+          if (!this.modules.has(name)) {
+            console.warn(`[Login] Module not found: ${name}`);
+            return null;
+          }
+          return this.modules.get(name);
+        },
+        init: function() {
+          console.log('[Login] Initializing core system');
+          return this;
+        }
+      };
+    }
+    
+    // Register player module
+    if (!window.RelayWorldCore.getModule('player')) {
+      console.log('[Login] Registering player module');
+      window.RelayWorldCore.registerModule('player', {
+        currentPlayer: null,
+        pubkey: null,
+        name: null,
+        isGuest: false,
+        setPlayer: function(data) {
+          console.log('[Player] Setting player data:', data);
+          this.currentPlayer = data;
+          this.pubkey = data.pubkey;
+          this.name = data.name || `Player-${data.pubkey.substring(0, 8)}`;
+          this.isGuest = data.isGuest || false;
+          
+          if (window.EventBus) {
+            window.EventBus.emit('player:updated', data);
+          }
+        },
+        getPlayer: function() {
+          return this.currentPlayer;
+        }
+      });
+    }
+    
+    // Register UI module
+    if (!window.RelayWorldCore.getModule('ui')) {
+      console.log('[Login] Registering UI module');
+      window.RelayWorldCore.registerModule('ui', {
+        elements: new Map(),
+        updateUI: function(elementId, data) {
+          console.log('[UI] Updating element:', elementId);
+          const element = document.getElementById(elementId);
+          if (element) {
+            if (elementId === 'player-profile' || elementId === 'top-bar') {
+              element.classList.remove('hide');
+            }
+            this.elements.set(elementId, data || {});
+            
+            if (window.EventBus) {
+              window.EventBus.emit('ui:updated', { elementId, data });
+            }
+          } else {
+            console.warn('[UI] Element not found:', elementId);
+          }
+        }
+      });
+    }
+    
+    // Register game module
+    if (!window.RelayWorldCore.getModule('game')) {
+      console.log('[Login] Registering game module');
+      window.RelayWorldCore.registerModule('game', {
+        state: 'initializing',
+        setState: function(newState) {
+          console.log('[Game] State changing to:', newState);
+          this.state = newState;
+          
+          if (window.EventBus) {
+            window.EventBus.emit('game:stateChange', newState);
+          }
+        },
+        getState: function() {
+          return this.state;
+        },
+        start: function() {
+          console.log('[Game] Starting game');
+          this.setState('playing');
+        }
+      });
+    }
+  }
+  
   // Setup login button handlers
   function initLoginHandlers() {
+    // If already logged in, don't set up login handlers
+    if (loginCompleted) {
+      console.log('[Login] Already logged in, not setting up login handlers');
+      return;
+    }
+    
     // Remove any existing event listeners (to prevent duplicates)
     const loginButton = document.getElementById('login-button');
     const guestLoginButton = document.getElementById('guest-login-button');
@@ -161,7 +342,9 @@
       if (loginStatus) loginStatus.textContent = 'Got pubkey, logging in...';
       console.log(`[Login] Got pubkey: ${pubkey.substring(0, 8)}...`);
       
-      // Set player pubkey
+      // Set player pubkey - ENSURE MODULES EXIST FIRST
+      ensureCoreModulesExist();
+      
       const playerModule = window.RelayWorldCore?.getModule('player');
       if (playerModule) {
         playerModule.pubkey = pubkey;
@@ -205,6 +388,9 @@
     
     loginInProgress = true;
     
+    // ENSURE MODULES EXIST FIRST - CRITICAL FIX
+    ensureCoreModulesExist();
+    
     showUsernameDialog(username => {
       if (!username) {
         loginInProgress = false;
@@ -218,9 +404,11 @@
       if (loginStatus) loginStatus.textContent = 'Setting up guest account...';
       
       // Generate a guest ID
-      const guestId = 'guest_' + Math.random().toString(36).substring(2, 2);
+      const guestId = 'guest_' + Math.random().toString(36).substring(2, 10);
       
-      // Set player info
+      // Set player info - ENSURE MODULES EXIST AGAIN
+      ensureCoreModulesExist();
+      
       const playerModule = window.RelayWorldCore?.getModule('player');
       if (playerModule) {
         playerModule.pubkey = guestId;
@@ -248,56 +436,129 @@
     });
   }
   
-  // Complete login process
+  // Complete login process - simplified and more robust
   function completeLogin(pubkey) {
-    // Hide login screen
-    const uiModule = window.RelayWorldCore?.getModule('ui');
-    if (uiModule) {
-      uiModule.hideLoginScreen();
-      uiModule.showGameUI();
-      uiModule.updatePlayerProfile();
-    } else {
-      // Fallback if module not found
-      const loginScreen = document.getElementById('login-screen');
-      if (loginScreen) {
-        loginScreen.style.opacity = '0';
-        loginScreen.style.transition = 'opacity 0.5s ease';
-        setTimeout(() => {
-          loginScreen.classList.add('hide');
-          loginScreen.style.opacity = '1';
-        }, 500);
+    console.log('[Login] Completing login for pubkey:', pubkey);
+    
+    try {
+      // Set login completed flag
+      loginCompleted = true;
+      
+      // Store login data in localStorage for persistence
+      try {
+        localStorage.setItem('relayworld_login', JSON.stringify({
+          pubkey: pubkey,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.warn('[Login] Could not save login to localStorage:', e);
       }
       
-      // Show game UI elements
-      ['top-bar', 'player-profile', 'leaderboard-container', 'chat-container'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.remove('hide');
-      });
-    }
-    
-    // Update player profile
-    const nameEl = document.getElementById('player-profile-name');
-    const npubEl = document.getElementById('player-profile-npub');
-    
-    const playerModule = window.RelayWorldCore?.getModule('player');
-    if (nameEl) nameEl.textContent = playerModule?.name || `User ${pubkey.substring(0, 8)}`;
-    if (npubEl) npubEl.textContent = pubkey.substring(0, 8);
-    
-    // Start game
-    const gameModule = window.RelayWorldCore?.getModule('game');
-    if (gameModule && typeof gameModule.start === 'function') {
-      gameModule.start();
-    }
-    
-    console.log(`[Login] Login complete for pubkey: ${pubkey.substring(0, 8)}`);
-    
-    // Set RelayWorld as initialized for 3D engine to detect
-    window.RelayWorld = window.RelayWorld || {};
-    window.RelayWorld.initialized = true;
-    
-    // Emit login event
-    if (window.EventBus && typeof window.EventBus.emit === 'function') {
-      window.EventBus.emit('auth:login', { pubkey });
+      // Make sure core modules exist
+      ensureCoreModulesExist();
+      
+      // Get modules from global scope
+      const playerModule = window.RelayWorldCore.getModule('player');
+      const uiModule = window.RelayWorldCore.getModule('ui');
+      const gameModule = window.RelayWorldCore.getModule('game');
+      
+      if (!playerModule) {
+        console.error('[Login] Player module still not available!');
+      }
+      
+      if (!uiModule) {
+        console.error('[Login] UI module still not available!');
+      }
+      
+      if (!gameModule) {
+        console.error('[Login] Game module still not available!');
+      }
+      
+      // Set player data if module exists
+      if (playerModule) {
+        console.log('[Login] Setting player data');
+        playerModule.setPlayer({
+          pubkey: pubkey,
+          name: pubkey.startsWith('guest_') ? 'Guest Player' : `Player-${pubkey.substring(0, 8)}`,
+          isGuest: pubkey.startsWith('guest_')
+        });
+      }
+      
+      // Update UI elements if module exists
+      if (uiModule) {
+        console.log('[Login] Updating UI elements');
+        uiModule.updateUI('player-profile');
+        uiModule.updateUI('top-bar');
+      } else {
+        // Fallback UI updates if module doesn't exist
+        const playerProfile = document.getElementById('player-profile');
+        const topBar = document.getElementById('top-bar');
+        if (playerProfile) playerProfile.classList.remove('hide');
+        if (topBar) topBar.classList.remove('hide');
+      }
+      
+      // Handle login screen (CRITICAL FIX - HIDE AGGRESSIVELY)
+      const loginScreen = document.getElementById('login-screen');
+      if (loginScreen) {
+        console.log('[Login] Aggressively hiding login screen');
+        loginScreen.classList.add('hide');
+        loginScreen.style.display = 'none';
+        loginScreen.style.visibility = 'hidden';
+        loginScreen.style.opacity = '0';
+        loginScreen.style.pointerEvents = 'none';
+        
+        // Add attribute for additional selector power
+        loginScreen.setAttribute('data-login-completed', 'true');
+      }
+      
+      // Set game state if module exists
+      if (gameModule) {
+        console.log('[Login] Setting game state to ready');
+        gameModule.setState('ready');
+      }
+      
+      // Create DOM event for maximum compatibility
+      try {
+        const loginEvent = new Event('loginComplete');
+        document.dispatchEvent(loginEvent);
+        window.dispatchEvent(loginEvent);
+        console.log('[Login] Dispatched loginComplete event');
+      } catch (e) {
+        console.warn('[Login] Failed to create Event object:', e);
+        // Fallback to simple event creation
+        try {
+          const oldStyleEvent = document.createEvent('Event');
+          oldStyleEvent.initEvent('loginComplete', true, true);
+          document.dispatchEvent(oldStyleEvent);
+          window.dispatchEvent(oldStyleEvent);
+          console.log('[Login] Dispatched loginComplete event (legacy way)');
+        } catch (e2) {
+          console.error('[Login] Failed to dispatch event:', e2);
+        }
+      }
+      
+      // Also use EventBus
+      if (window.EventBus && typeof window.EventBus.emit === 'function') {
+        window.EventBus.emit('auth:loginComplete', { pubkey });
+        console.log('[Login] Emitted auth:loginComplete event');
+      }
+      
+      // CRITICAL FIX: Keep checking to force login screen to stay hidden
+      setInterval(function() {
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen && !loginScreen.classList.contains('hide')) {
+          console.log('[Login] Force re-hiding login screen');
+          loginScreen.classList.add('hide');
+          loginScreen.style.display = 'none';
+        }
+      }, 100);
+      
+      console.log('[Login] Login complete for pubkey:', pubkey);
+      showToast('Login successful!', 'success');
+      
+    } catch (error) {
+      console.error('[Login] Error completing login:', error);
+      showToast('Login failed: ' + error.message, 'error');
     }
   }
   
@@ -457,6 +718,14 @@
     showToast,
     showUsernameDialog,
     handleNostrLogin,
-    handleGuestLogin
+    handleGuestLogin,
+    ensureCoreModulesExist, // Export this crucial function
+    
+    // NEW: Add function to force logout (for testing/debugging)
+    forceLogout: function() {
+      loginCompleted = false;
+      localStorage.removeItem('relayworld_login');
+      window.location.reload();
+    }
   };
 })();
